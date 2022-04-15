@@ -1,0 +1,35 @@
+/* Credit to https://www.w3schools.com/howto/howto_js_image_comparison.asp */
+
+* {
+    box-sizing: border-box;
+}
+
+.slider-video {
+    object-fit: cover;
+}
+
+.img-comp-container {
+    position: relative;
+    width: 50%;
+    height: 0;
+    padding-bottom: 50%;
+}
+
+.img-comp-img {
+    position: absolute;
+    overflow: hidden;
+}
+
+.img-comp-img img {
+    display: block;
+}
+
+.img-comp-slider {
+    position: absolute;
+    z-index: 9;
+    cursor: ew-resize;
+    /*set the appearance of the slider:*/
+    width: 30px;
+    height: 13px;
+    opacity: 0.6;
+}

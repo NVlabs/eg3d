@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="" xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <link href="media/graphics/favicon.ico" rel="shortcut icon" />
+    <title> EG3D: Efficient Geometry-aware 3D GANs </title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="box_swipe.css">
+    <script src="box_swipe.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Montserrat|Segoe+UI" rel="stylesheet" />
+</head>
+
+<body>
+    <!-- SECTION: HEADER -->
+    <div class="n-header">
+    </div>
+    <div class="n-title">
+        <h1> EG3D: Efficient Geometry-aware 3D Generative Adversarial Networks </h1>
+    </div>
+    <!-- SECTION: AUTHORS -->
+    <div class="n-byline">
+        <div class="byline">
+            <ul class="authors">
+                <li> <a href="https://ericryanchan.github.io" target="_blank">Eric Ryan Chan</a> <sup> * 1, 2 </sup>
+                </li>
+                <li> <a href="https://connorzlin.com" target="_blank">Connor Zhizhen Lin</a> <sup> * 1 </sup>
+                </li>
+                <li> <a href="https://matthew-a-chan.github.io" target="_blank">Matthew Aaron Chan</a> <sup> * 1 </sup>
+                </li>
+                <li> <a href="https://luminohope.org/" target="_blank">Koki Nagano</a> <sup> * 2 </sup>
+                </li>
+                <li> <a href="https://cs.stanford.edu/~bxpan/" target="_blank">Boxiao Pan</a> <sup> 1 </sup>
+                </li>
+                <li> <a href="https://research.nvidia.com/person/shalini-gupta" target="_blank">Shalini De Mello</a>
+                    <sup> 2 </sup>
+                </li>
+                <li> <a href="https://oraziogallo.github.io/" target="_blank">Orazio Gallo</a> <sup> 2 </sup>
+                </li>
+                <li> <a href="https://geometry.stanford.edu/member/guibas/" target="_blank">Leonidas Guibas</a> <sup> 1
+                    </sup>
+                </li>
+                <li> <a href="https://research.nvidia.com/person/jonathan-tremblay" target="_blank">Jonathan
+                        Tremblay</a> <sup> 2 </sup>
+                </li>
+                <li> <a href="https://www.samehkhamis.com/" target="_blank">Sameh Khamis</a> <sup> 2 </sup>
+                </li>
+                <li> <a href="https://research.nvidia.com/person/tero-karras" target="_blank">Tero Karras</a> <sup> 2
+                    </sup>
+                </li>
+                <li> <a href="https://stanford.edu/~gordonwz/" target="_blank">Gordon Wetzstein</a> <sup> 1 </sup>
+                </li>
+            </ul>
+            <div class="authors-affiliations-gap"></div>
+            <ul class="authors affiliations">
+                <li>
+                    <sup> 1 </sup> Stanford University
+                </li>
+                <li>
+                    <sup> 2 </sup> NVIDIA
+                </li>
+            </ul>
+            <ul class="authors affiliations">
+                <li>
+                    <sup> * </sup> Equal contribution.
+                </li>
+            </ul>
+        </div>
+    </div>
+    <!-- SECTION: MAIN BODY -->
+    <div class="n-article">
+        <!-- teaser -->
+        <div class="l-article video youtube-embed">
+            <iframe class="l-article youtube-video" width="100%" height="100%" src="https://www.youtube.com/embed/cXxEwI7QbKg"
+                title="YouTube video player" frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+        </div>
+        <!-- abstract -->
+        <h2 id="abstract"> Abstract </h2>
+        <p> Unsupervised generation of high-quality multi-view-consistent images and 3D shapes using only collections of
+            single-view 2D photographs has been a long-standing challenge. Existing 3D GANs are either compute-intensive
+            or make approximations that are not 3D-consistent; the former limits quality and resolution of the generated
+            images and the latter adversely affects multi-view consistency and shape quality. In this work, we improve
+            the computational efficiency and image quality of 3D GANs without overly relying on these approximations.
+            For this purpose, we introduce an expressive hybrid explicit-implicit network architecture that, together
+            with other design choices, synthesizes not only high-resolution multi-view-consistent images in real time
+            but also produces high-quality 3D geometry. By decoupling feature generation and neural rendering, our
+            framework is able to leverage state-of-the-art 2D CNN generators, such as StyleGAN2, and inherit their
+            efficiency and expressiveness. We demonstrate state-of-the-art 3D-aware synthesis with FFHQ and AFHQ Cats,
+            among other experiments. </p>
+        <!-- paper links -->
+        <h2 id="links"> Links </h2>
+        <div class="grid download-section">
+            <div class="download-thumb">
+                <a href="media/eg3d.pdf" target="_blank">
+                    <img class="dropshadow" src="media/eg3d_thumbnail.png" />
+                </a>
+            </div>
+            <div class="download-links">
+                <ul>
+                    <li>
+                        <a href="media/eg3d.pdf" target="_blank"> Paper PDF </a>
+                    </li>
+                    <li>
+                        <a href="https://arxiv.org/abs/2112.07945" target="_blank"> arXiv </a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/NVlabs/eg3d" target="_blank"> Code on GitHub </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <h2 id="videos"> Videos </h2>
+        <p>
+        <h3>Qualitative results</h3>
+        </p>
+        <p> The following videos demonstrate scene synthesis with our method, which produces both high-quality,
+            multi-view-consistent renderings and detailed geometry. </p>
+        <div class="l-article video">
+            <video controls="" loop="" width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/qualitative_results/qualitative_results_rgb.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 1: </strong> Color video renderings of scenes produced by our method, created by
+                    moving the camera along a path while fixing the latent code that controls the scene.
+                </div>
+            </div>
+        </div>
+        <p>
+        <div class="l-article video">
+            <video controls="" loop="" width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/qualitative_results/qualitative_results_shape_compressed.mp4#t=0.001"
+                    type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 2: </strong> Renderings of surfaces generated by our method, which are obtained from
+                    the density field of our 3D representation with isosurface extraction.
+                </div>
+            </div>
+        </div>
+        <p>
+        <h3>Interpolation</h3>
+        </p>
+        <p> Our method inherits the qualities of the StyleGAN2 backbone, including a well-behaved latent space. The
+            following video shows interpolation between selected points in FFHQ. </p>
+        <div class="l-article video">
+            <video controls="" loop="" width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/interpolation_compressed.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 3: </strong> Interpolations between latent vectors with FFHQ.
+                </div>
+            </div>
+        </div>
+        <p>
+        <h3>Tri-plane Representation</h3>
+        </p>
+        <div class="l-article video">
+            <img src="media/representation/implicit-explicit.png" width="100%" />
+            <div class="videocaption">
+                <div>
+                </div>
+            </div>
+        </div>
+        <p> Training a GAN with neural rendering is expensive, so we use a hybrid explicit-implicit 3D representation in
+            order to make neural rendering as efficient as possible. Our representation combines an explicit backbone,
+            which produces features aligned on three orthogonal planes, with a small implicit decoder. Compared to a
+            typical multilayer perceptron representation, our 3D representation is more than seven times faster and uses
+            less than one sixteenth as much memory. In using StyleGAN2 as the backbone of our representation, we inherit
+            the qualities of the backbone, including a well-behaved latent space. </p>
+        <p>
+        <h3>Super-resolution & Dual Discrimination</h3>
+        </p>
+        <p> We perform volumetric rendering at a moderate resolution ( 128 x 128 ) and leverage 2D image-space
+            convolutions (super-resolution) to increase the final output resolution and image quality. Crucially, we
+            ensure consistency between the final output image and the neural rendering (dual discrimination), which
+            prevents view-inconsistent convolutional layers from introducing undesirable artifacts. </p>
+        <div class="l-article video">
+            <video controls="" loop="" width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/superresolution_compressed.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 4: </strong> Two video sequences comparing the super-resolution output (left half of
+                    each scene) to the neural volume rendering (right half of each scene).
+                </div>
+            </div>
+        </div>
+        <p> Training natively lets the convolution super-resolution layers introduce view-inconsistent effects, such as
+            subtle expression warping at the corners of the mouth. Adding dual discrimination (right) ensures the final
+            renderings are consistent with the raw neural volume renderings, which helps suppress these artifacts. </p>
+        <div class="l-article video">
+            <video controls="" loop="" width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/dualdisc_trimmed.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 5: </strong> Side-by-side comparison of models trained without dual discrimination
+                    (left) and with dual discrimination (right).
+                </div>
+            </div>
+        </div>
+        <p>
+        <h3>Inversion</h3>
+        </p>
+        <p> We apply the prior over 3D faces learned by our method to single-image 3D reconstruction. We use Pivotal
+            Tuning Inversion to invert test images and recover 3D shapes and novel views. </p>
+        <div class="l-article video">
+            <video controls="" loop="" width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/inversion_compressed.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 6: </strong> Single image 3D reconstruction using Pivotal Tuning Inversion. Input
+                    image (left) and reconstruction (right).
+                </div>
+            </div>
+        </div>
+        <p>
+        <h3>Realtime Demomonstration</h3>
+        </p>
+        <p> An efficient architecture enables scene synthesis and rendering at at real-time framerates, opening the door
+            for many exciting interactive applications.</p>
+        <div class="l-article video">
+            <video controls="" loop="" muted width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/realtime_compressed.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 7: </strong> A demonstration of our method synthesizing and rendering scenes in
+                    real-time.
+                </div>
+            </div>
+        </div>
+        <p>
+        <h3>Split Color/Geometry Demo</h3>
+        </p>
+        <p> Click to play <img src="media/graphics/playpause-01.svg" class="play-pause"> / pause <img
+                src="media/graphics/playpause-02.svg" class="play-pause"> each figure; drag the separator to see the
+            pixel-aligned geometry. Click <a href="javascript:resetComparisons();"><u>here</u></a> to reset. </p>
+        <div class="l-article video">
+            <div class="img-comp-container">
+                <div class="img-comp-img">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-0">
+                        <source src="media/sliders/A_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+                <div class="img-comp-img img-comp-overlay">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-0">
+                        <source src="media/sliders/A_shape_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+            </div>
+            <div class="img-comp-container">
+                <div class="img-comp-img">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-1">
+                        <source src="media/sliders/B_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+                <div class="img-comp-img img-comp-overlay">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-1">
+                        <source src="media/sliders/B_shape_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+            </div>
+            <div class="img-comp-container">
+                <div class="img-comp-img">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-2">
+                        <source src="media/sliders/C_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+                <div class="img-comp-img img-comp-overlay">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-2">
+                        <source src="media/sliders/C_shape_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+            </div>
+            <div class="img-comp-container">
+                <div class="img-comp-img">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-3">
+                        <source src="media/sliders/D_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+                <div class="img-comp-img img-comp-overlay">
+                    <video controls="" loop="" controls="false" class="slider-video slider-video-3">
+                        <source src="media/sliders/D_shape_compressed.mp4#t=0.001" type="video/mp4" />
+                    </video>
+                </div>
+            </div>
+        </div>
+        <p>
+        <h3>Additional Visual Results</h3>
+        </p>
+        <p> We include additional results in the following video. </p>
+        <div class="l-article video">
+            <video controls="" loop="" muted width="100%">
+                <!-- t=0.001 is a hack to make iPhone show video thumbnail -->
+                <source src="media/additional_results.mp4#t=0.001" type="video/mp4" />
+            </video>
+            <div class="videocaption">
+                <div>
+                    <strong> Video 8: </strong> Additional sequences of interpolation within FFHQ and static scenes of
+                    FFHQ and AFHQv2.
+                </div>
+            </div>
+        </div>
+        <script>
+            initComparisons();
+            linkVideos(0);
+            linkVideos(1);
+            linkVideos(2);
+            linkVideos(3);
+        </script>
+        <h2 id="citation"> Citation </h2>
+        <pre><code>@inproceedings{Chan2021,
+            author = {Eric R. Chan and Connor Z. Lin and Matthew A. Chan and Koki Nagano and Boxiao Pan and Shalini De Mello and Orazio Gallo and Leonidas Guibas and Jonathan Tremblay and Sameh Khamis and Tero Karras and Gordon Wetzstein},
+            title = {Efficient Geometry-aware {3D} Generative Adversarial Networks},
+            booktitle = {arXiv},
+            year = {2021}
+          }</code></pre>
+        <h2 id="license"> License </h2>
+        <p> Images, text and video files on this site are made freely available for non-commercial use under the <a
+                href="https://nvlabs-fi-cdn.nvidia.com/_web/stylegan3/LICENSE.txt"> Creative Commons CC BY-NC 4.0
+                license </a> . Feel free to use any of the material in your own work, as long as you give us appropriate
+            credit by mentioning the title and author list of our paper. </p>
+        <h2 id="acknowledgments"> Acknowledgments </h2>
+        <p> We thank David Luebke, Jan Kautz, Jaewoo Seo, Jonathan Granskog, Simon Yuen, Alex Evans, Stan Birchfield,
+            Alexander Bergman, and Joy Hsu for reviewing early drafts and for the helpful suggestions and feedback. We
+            thank Alex Chan, Giap Nguyen, and Trevor Chan for help with figures and diagrams. Koki Nagano and Eric Chan
+            were partially supported by DARPA’s Semantic Forensics (SemaFor) contract (HR0011-20-3-0005). The views and
+            conclusions contained in this document are those of the authors and should not be interpreted as
+            representing the official policies, either expressed or implied, of the U.S. Government. Distribution
+            Statement "A" (Approved for Public Release, Distribution Unlimited). We base this website off of the <a
+                href="https://nvlabs.github.io/stylegan3/" target="_blank">StyleGAN3</a> website template.</p>
+    </div>
+    <div class="n-footer">
+    </div>
+</body>
+
+</html>
