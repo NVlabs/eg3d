@@ -1,0 +1,27 @@
+images/
+.DS_Store
+.ipynb_checkpoints
+data
+output
+debug
+*.pyc
+deep-head-pose
+EvalImages
+cache*
+*.pkl
+gif
+archive
+*.ply
+eval
+out
+
+# evaluation:
+temp/
+shapes/
+imgs/
+vids/
+*.mp4
+
+stylegan3/results
+eg3d/results
+eg3d_results
