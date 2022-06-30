@@ -204,7 +204,7 @@ class Renderer:
             # net.rendering_kwargs['ray_start'] = 'auto'
             # net.rendering_kwargs['ray_end'] = 'auto'
             # net.rendering_kwargs['avg_camera_pivot'] = [0, 0, 0]
-                
+
         return net
 
     def _get_pinned_buf(self, ref):
@@ -311,7 +311,7 @@ class Renderer:
             camera_pivot = torch.tensor(lookat_point)
         camera_radius = G.rendering_kwargs.get('avg_camera_radius', 2.7)
         forward_cam2world_pose = LookAtPoseSampler.sample(3.14/2 + conditioning_yaw, 3.14/2 + conditioning_pitch, camera_pivot, radius=camera_radius)
-        intrinsics = torch.tensor([[4.2647, 0, 0.5], [0, 4.2647, 0.5], [0, 0, 1]])
+        intrinsics = torch.tensor([[focal_length, 0, 0.5], [0, focal_length, 0.5], [0, 0, 1]])
         conditioning_params = torch.cat([forward_cam2world_pose.reshape(16), intrinsics.reshape(9)], 0)
         all_cs[idx, :] = conditioning_params.numpy()
 
