@@ -14,7 +14,7 @@ TLDR:
 ## Network & Latent
 
 ### Pickle
-Specifiy the path of the model checkpoint to visualize. You have a few options:
+Specify the path of the model checkpoint to visualize. You have a few options:
 1. Drag and drop the .pkl file from your file browser into the visualizer window
 1. Type the path (or url) of your .pkl file into the text field
 1. Press the recent box to access a list of recently used checkpoints
