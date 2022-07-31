@@ -32,13 +32,14 @@ os.chdir('..')
 command = "python 3dface2idr_mat.py --in_root Deep3DFaceRecon_pytorch/checkpoints/pretrained/results/epoch_20_000000"
 print(command)
 os.system(command)
-# additional correction to match the submission version
-command = "python preprocess_cameras.py --source Deep3DFaceRecon_pytorch/checkpoints/pretrained/results/epoch_20_000000 --mode orig"
-print(command)
-os.system(command)
 
 
 # crop out the input image
 command = "python crop_images_in_the_wild.py --indir=" + args.indir
+print(command)
+os.system(command)
+
+# additional correction to match the submission version
+command = "python preprocess_face_cameras.py --source Deep3DFaceRecon_pytorch/checkpoints/pretrained/results/epoch_20_000000 --dest temp --mode orig"
 print(command)
 os.system(command)
