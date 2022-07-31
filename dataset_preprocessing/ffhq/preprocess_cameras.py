@@ -22,7 +22,7 @@ from tqdm import tqdm
 import argparse
 import torch
 import sys
-sys.path.append('eg3d')
+sys.path.append('../../eg3d')
 from camera_utils import create_cam2world_matrix
 
 COMPRESS_LEVEL=0
@@ -100,8 +100,8 @@ if __name__ == '__main__':
         intrinsics = fix_intrinsics(intrinsics)
         label = np.concatenate([pose.reshape(-1), intrinsics.reshape(-1)]).tolist()
             
-        image_path = os.path.join(args.source, filename)
-        img = Image.open(image_path)
+        # image_path = os.path.join(args.source, filename)
+        # img = Image.open(image_path)
 
         dataset["labels"].append([filename, label])
         # os.makedirs(os.path.dirname(os.path.join(args.dest, filename)), exist_ok=True)

@@ -113,6 +113,14 @@ cd dataset_preprocessing/ffhq
 python runme.py
 ```
 
+Optional: preprocessing in-the-wild portrait images. 
+In case you want to crop in-the-wild face images and extract poses using [Deep3DFaceRecon_pytorch](https://github.com/sicxu/Deep3DFaceRecon_pytorch/tree/6ba3d22f84bf508f0dde002da8fff277196fef21) in a way that align with the FFHQ data above and the checkpoint, run the following commands 
+```.bash
+cd dataset_preprocessing/ffhq
+python preprocess_in_the_wild.py --indir=INPUT_IMAGE_FOLDER
+```
+
+
 **AFHQv2**: Download and process the [AFHQv2 dataset](https://github.com/clovaai/stargan-v2/blob/master/README.md#animal-faces-hq-dataset-afhq) with the following.
 
 1. Download the AFHQv2 images zipfile from the [StarGAN V2 repository](https://github.com/clovaai/stargan-v2/)
