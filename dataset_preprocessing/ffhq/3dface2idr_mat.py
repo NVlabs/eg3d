@@ -21,6 +21,7 @@ from Deep3DFaceRecon_pytorch.models.bfm import ParametricFaceModel
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--in_root', type=str, default="", help='process folder')
+parser.add_argument('--out_path', type=str, default="cameras.json", help='output filename')
 args = parser.parse_args()
 in_root = args.in_root
 
@@ -73,9 +74,8 @@ for src_filename in npys:
     out = {}
     out["intrinsics"] = K
     out["pose"] = pose
-    outAll[src_filename.replace(".mat", ".jpg")] = out
+    outAll[src_filename.replace(".mat", ".png")] = out
 
 
-dst = os.path.join(in_root, "cameras.json")
-with open(dst, "w") as outfile:
+with open(args.out_path, "w") as outfile:
     json.dump(outAll, outfile)
