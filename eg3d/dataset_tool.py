@@ -354,7 +354,7 @@ def convert_dataset(
     offer better training performance on network file systems.
 
     Images within the dataset archive will be stored as uncompressed PNG.
-    Uncompresed PNGs can be efficiently decoded in the training loop.
+    Uncompressed PNGs can be efficiently decoded in the training loop.
 
     Class labels are stored in a file called 'dataset.json' that is stored at the
     dataset root folder.  This file has the following structure:
@@ -364,7 +364,7 @@ def convert_dataset(
         "labels": [
             ["00000/img00000000.png",6],
             ["00000/img00000001.png",9],
-            ... repeated for every image in the datase
+            ... repeated for every image in the dataset
             ["00049/img00049999.png",1]
         ]
     }
