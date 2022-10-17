@@ -12,8 +12,14 @@ import torch
 from torch_utils import persistence
 from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2 import FullyConnectedLayer
-from training.networks_stylegan2_volume import Generator as VolumeBackbone
-from training.networks_stylegan2_volume import FullyConnectedLayer
+
+# ### add 1d pc_ws to cur_ws, still tri-plane
+# from training.networks_stylegan2_volume import Generator as VolumeBackbone
+# from training.networks_stylegan2_volume import FullyConnectedLayer
+
+### no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
+from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
+from training.networks_stylegan2_3dconv import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
@@ -58,8 +64,8 @@ class VolumeGenerator(torch.nn.Module):
         self.backbone = VolumeBackbone(z_dim, c_dim, w_dim, pc_dim=pc_dim, volume_res=volume_res, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         ##
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
-        self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
-        # self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
+        # self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
+        self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
         self.neural_rendering_resolution = 64
         self.rendering_kwargs = rendering_kwargs
     
@@ -108,7 +114,7 @@ class VolumeGenerator(torch.nn.Module):
             # 1. no reshape
             # 2. .
             # (do nothing)
-            st()
+            # st()
             pass
 
         # Perform volume rendering
