@@ -12,8 +12,8 @@ import torch
 from torch_utils import persistence
 from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2 import FullyConnectedLayer
-from training.networks_stylegan2_volume import Generator as VolumeBackbone
-from training.networks_stylegan2_volume import FullyConnectedLayer
+from training.networks_stylegan2_pcws import Generator as VolumeBackbone
+from training.networks_stylegan2_pcws import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
