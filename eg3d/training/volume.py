@@ -58,8 +58,8 @@ class VolumeGenerator(torch.nn.Module):
         self.backbone = VolumeBackbone(z_dim, c_dim, w_dim, pc_dim=pc_dim, volume_res=volume_res, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         ##
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
-        # self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
-        self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
+        self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
+        # self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
         self.neural_rendering_resolution = 64
         self.rendering_kwargs = rendering_kwargs
     
@@ -101,11 +101,15 @@ class VolumeGenerator(torch.nn.Module):
             self._last_planes = planes
 
         # Reshape output into three 32-channel planes
-        # planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
-        # TODO: replace with volume: 
-        # 1. no reshape
-        # 2. .
-        # (do nothing)
+        try:
+            planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
+        except:
+            # TODO: replace with volume: 
+            # 1. no reshape
+            # 2. .
+            # (do nothing)
+            st()
+            pass
 
         # Perform volume rendering
         ## already adapted to volume
@@ -135,7 +139,8 @@ class VolumeGenerator(torch.nn.Module):
     def sample_mixed(self, coordinates, directions, ws, pc=None, box_warp=None, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
         # Same as sample, but expects latent vectors 'ws' instead of Gaussian noise 'z'
         planes = self.backbone.synthesis(ws, pc=pc, box_warp=box_warp, update_emas = update_emas, **synthesis_kwargs)
-        # planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
+        if planes.shape[-1]!=planes.shape[-3]:
+            planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
 
     def forward(self, z, c, pc, truncation_psi=1, truncation_cutoff=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):

@@ -171,8 +171,12 @@ class VolumeImportanceRenderer(torch.nn.Module):
 
     def run_model(self, planes, decoder, sample_coordinates, sample_directions, options):
         # st()
-        # sampled_features_plane = sample_from_planes(self.plane_axes, planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
-        sampled_features = sample_from_volume(planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
+        # if planes.shape[1]==96:
+        if planes.shape[-3]!=planes.shape[-1]:
+            sampled_features = sample_from_planes(self.plane_axes, planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
+        else:
+            st()
+            sampled_features = sample_from_volume(planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
         # st() # align sampled_features.shape and sampled_features.shape
 
         out = decoder(sampled_features, sample_directions)

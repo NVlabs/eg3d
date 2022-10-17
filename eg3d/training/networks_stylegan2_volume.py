@@ -31,7 +31,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_scatter
 import spconv.pytorch.conv as spconv
-from training.costregnet import CostRegNet_Deeper
+from training.costregnet import CostRegNet_Deeper, PcWsUnet
 #----------------------------------------------------------------------------
 
 @misc.profiled_function
@@ -257,6 +257,7 @@ class MappingNetwork(torch.nn.Module):
         for idx in range(self.num_layers):
             layer = getattr(self, f'fc{idx}')
             x = layer(x)
+        # st() # x: (1,512)
 
         # Update moving average of W.
         if update_emas and self.w_avg_beta is not None:
@@ -269,6 +270,7 @@ class MappingNetwork(torch.nn.Module):
                 x = x.unsqueeze(1).repeat([1, self.num_ws, 1])
 
         # Apply truncation.
+        # st()
         if truncation_psi != 1:
             with torch.autograd.profiler.record_function('truncate'):
                 assert self.w_avg_beta is not None
@@ -527,13 +529,18 @@ class SynthesisNetwork(torch.nn.Module):
         #             ).cuda()
         ######### for unet3d ############
         unet_in_channels = 32
-        self.unet3d=CostRegNet_Deeper(unet_in_channels, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
+        unet_out_channels = 8
+        self.grid_res = 128
+        self.grid_size=[self.grid_res]*3
+        self.unet3d=CostRegNet_Deeper(unet_in_channels, out_dim=unet_out_channels, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
+        self.pc_ws_unet=PcWsUnet(in_channels=unet_in_channels, in_resolution=self.grid_res, \
+            block_resolutions=self.block_resolutions, out_dim=unet_out_channels)
 
     def forward(self, ws, pc, box_warp, **block_kwargs):
     # def forward(self, ws, **block_kwargs):
-        RETURN_IMG=False
+        RETURN_IMG=True
         if RETURN_IMG:
-            st()
+           
             block_ws = []
             ######## latents ----------------
 
@@ -542,10 +549,23 @@ class SynthesisNetwork(torch.nn.Module):
                 ws = ws.to(torch.float32)
                 w_idx = 0
                 for res in self.block_resolutions:
+    
                     block = getattr(self, f'b{res}')
                     block_ws.append(ws.narrow(1, w_idx, block.num_conv + block.num_torgb))
                     w_idx += block.num_conv
 
+            
+            # 1. extract corresponding res of pointcloud feature: which is smiliar to condtition the ws on pc
+            # # 1.1 voxelize input pc
+            
+            B,_,_=pc.shape
+            _coor, _feature_3d, density_volume, voxel_size = self.voxelize_spconv_sparse_pointnet(
+                                                            pc=pc, box_warp=box_warp,grid_size=self.grid_size)
+            _ret = spconv.SparseConvTensor(_feature_3d, _coor.int(), np.array(self.grid_size),
+                                    B) # sp_tensor batch = B*V
+            _feature_3d = _ret.dense(channels_first = True).contiguous() # [B, C, X, Y, Z], C=32
+            volume_res_features = self.pc_ws_unet(_feature_3d) # a dict of pc feature at different resolution
+            # st()
 
         # ----change to all with the same global latent------------
 
@@ -559,6 +579,17 @@ class SynthesisNetwork(torch.nn.Module):
             # st() # pc.shape
             for res, cur_ws in zip(self.block_resolutions, block_ws):
                 block = getattr(self, f'b{res}')
+                pc_ws = volume_res_features.get(res)
+                if pc_ws is not None:
+                    pc_ws = pc_ws.unsqueeze(1).repeat(1, cur_ws.shape[1],1)
+                    # print(pc_ws.shape)
+                    # cur_ws[..., :pc_ws.shape[-1]]=pc_ws: inplace operation not allowed
+                    comb_mask = torch.ones_like(cur_ws)
+                    comb_mask[..., :pc_ws.shape[-1]]*=0
+                    p1d=(0,cur_ws.shape[-1]-pc_ws.shape[-1])
+                    pc_ws_pad = F.pad(pc_ws, p1d, 'constant', 0)
+                    cur_ws = comb_mask*cur_ws + (1-comb_mask)*pc_ws_pad
+                    # print(cur_ws.shape)
                 x, img = block(x, img, cur_ws, **block_kwargs)
             # st() # align with img.shape: torch.Size([4, 96, 256, 256]):  B,C,H,W
             return img
@@ -569,8 +600,8 @@ class SynthesisNetwork(torch.nn.Module):
         _grid_size=[64,64,64]
         B,_,_=pc.shape
         _coor, _feature_3d, density_volume, voxel_size = self.voxelize_spconv_sparse_pointnet(
-                                                        pc=pc, box_warp=box_warp,grid_size=_grid_size)
-        _ret = spconv.SparseConvTensor(_feature_3d, _coor.int(), np.array(_grid_size),
+                                                        pc=pc, box_warp=box_warp,grid_size=self.grid_size)
+        _ret = spconv.SparseConvTensor(_feature_3d, _coor.int(), np.array(self.grid_size),
                                 B) # sp_tensor batch = B*V
         _feature_3d = _ret.dense(channels_first = True).contiguous() # [B, C, X, Y, Z], C=32
         
