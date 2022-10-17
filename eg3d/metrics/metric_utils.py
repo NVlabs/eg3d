@@ -20,6 +20,9 @@ import numpy as np
 import torch
 import dnnlib
 
+from ipdb import set_trace as st
+from training.volume import VolumeGenerator
+
 #----------------------------------------------------------------------------
 
 class MetricOptions:
@@ -57,16 +60,27 @@ def get_feature_detector(url, device=torch.device('cpu'), num_gpus=1, rank=0, ve
 #----------------------------------------------------------------------------
 
 def iterate_random_labels(opts, batch_size):
+
     if opts.G.c_dim == 0:
         c = torch.zeros([batch_size, opts.G.c_dim], device=opts.device)
         while True:
             yield c
     else:
         dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
-        while True:
-            c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_size)]
-            c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
-            yield c
+        
+        if isinstance(opts.G, VolumeGenerator):
+            # to add get label and pc at the same time
+            while True:
+                c_and_pc = [dataset.get_label_and_pc(np.random.randint(len(dataset))) for _i in range(batch_size)]
+                c, pc = list(map(list, zip(*c_and_pc)))
+                c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
+                pc = torch.from_numpy(np.stack(pc)).pin_memory().to(opts.device)
+                yield c, pc
+        else:
+            while True:
+                c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_size)]
+                c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
+                yield c
 
 #----------------------------------------------------------------------------
 
@@ -253,6 +267,7 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
     assert batch_size % batch_gen == 0
 
     # Setup generator and labels.
+    
     G = copy.deepcopy(opts.G).eval().requires_grad_(False).to(opts.device)
     c_iter = iterate_random_labels(opts=opts, batch_size=batch_gen)
 
@@ -265,11 +280,19 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
     # Main loop.
     while not stats.is_full():
         images = []
-        for _i in range(batch_size // batch_gen):
-            z = torch.randn([batch_gen, G.z_dim], device=opts.device)
-            img = G(z=z, c=next(c_iter), **opts.G_kwargs)['image']
-            img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-            images.append(img)
+        if isinstance(opts.G, VolumeGenerator): # c_iter generate both c and pc
+            for _i in range(batch_size // batch_gen):
+                z = torch.randn([batch_gen, G.z_dim], device=opts.device)
+                c, pc = next(c_iter)
+                img = G(z=z, c=c, pc=pc, **opts.G_kwargs)['image']
+                img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+                images.append(img)
+        else:
+            for _i in range(batch_size // batch_gen):
+                z = torch.randn([batch_gen, G.z_dim], device=opts.device)
+                img = G(z=z, c=next(c_iter), **opts.G_kwargs)['image']
+                img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+                images.append(img)
         images = torch.cat(images)
         if images.shape[1] == 1:
             images = images.repeat([1, 3, 1, 1])

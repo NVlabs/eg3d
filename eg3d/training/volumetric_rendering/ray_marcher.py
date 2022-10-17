@@ -16,6 +16,7 @@ Based off of the implementation in MipNeRF (this one doesn't do any cone tracing
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from ipdb import set_trace as st
 
 class MipRayMarcher2(nn.Module):
     def __init__(self):
@@ -24,6 +25,7 @@ class MipRayMarcher2(nn.Module):
 
     def run_forward(self, colors, densities, depths, rendering_options):
         deltas = depths[:, :, 1:] - depths[:, :, :-1]
+        # st()
         colors_mid = (colors[:, :, :-1] + colors[:, :, 1:]) / 2
         densities_mid = (densities[:, :, :-1] + densities[:, :, 1:]) / 2
         depths_mid = (depths[:, :, :-1] + depths[:, :, 1:]) / 2

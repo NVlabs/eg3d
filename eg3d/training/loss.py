@@ -17,6 +17,8 @@ from torch_utils.ops import conv2d_gradfix
 from torch_utils.ops import upfirdn2d
 from training.dual_discriminator import filtered_resizing
 
+from ipdb import set_trace as st
+from training.volume import VolumeGenerator
 #----------------------------------------------------------------------------
 
 class Loss:
@@ -54,7 +56,7 @@ class StyleGAN2Loss(Loss):
         self.blur_raw_target = True
         assert self.gpc_reg_prob is None or (0 <= self.gpc_reg_prob <= 1)
 
-    def run_G(self, z, c, swapping_prob, neural_rendering_resolution, update_emas=False):
+    def run_G(self, z, c, pc, swapping_prob, neural_rendering_resolution, update_emas=False):
         if swapping_prob is not None:
             c_swapped = torch.roll(c.clone(), 1, 0)
             c_gen_conditioning = torch.where(torch.rand((c.shape[0], 1), device=c.device) < swapping_prob, c_swapped, c)
@@ -67,7 +69,11 @@ class StyleGAN2Loss(Loss):
                 cutoff = torch.empty([], dtype=torch.int64, device=ws.device).random_(1, ws.shape[1])
                 cutoff = torch.where(torch.rand([], device=ws.device) < self.style_mixing_prob, cutoff, torch.full_like(cutoff, ws.shape[1]))
                 ws[:, cutoff:] = self.G.mapping(torch.randn_like(z), c, update_emas=False)[:, cutoff:]
-        gen_output = self.G.synthesis(ws, c, neural_rendering_resolution=neural_rendering_resolution, update_emas=update_emas)
+        # st()
+        if isinstance(self.G, VolumeGenerator):
+            gen_output = self.G.synthesis(ws, c, pc, neural_rendering_resolution=neural_rendering_resolution, update_emas=update_emas)
+        else:
+            gen_output = self.G.synthesis(ws, c, neural_rendering_resolution=neural_rendering_resolution, update_emas=update_emas)
         return gen_output, ws
 
     def run_D(self, img, c, blur_sigma=0, blur_sigma_raw=0, update_emas=False):
@@ -87,7 +93,7 @@ class StyleGAN2Loss(Loss):
         logits = self.D(img, c, update_emas=update_emas)
         return logits
 
-    def accumulate_gradients(self, phase, real_img, real_c, gen_z, gen_c, gain, cur_nimg):
+    def accumulate_gradients(self, phase, real_img, real_c, gen_z, gen_c, gen_pc, gain, cur_nimg):
         assert phase in ['Gmain', 'Greg', 'Gboth', 'Dmain', 'Dreg', 'Dboth']
         if self.G.rendering_kwargs.get('density_reg', 0) == 0:
             phase = {'Greg': 'none', 'Gboth': 'Gmain'}.get(phase, phase)
@@ -118,7 +124,8 @@ class StyleGAN2Loss(Loss):
         # Gmain: Maximize logits for generated images.
         if phase in ['Gmain', 'Gboth']:
             with torch.autograd.profiler.record_function('Gmain_forward'):
-                gen_img, _gen_ws = self.run_G(gen_z, gen_c, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution)
+                gen_img, _gen_ws = self.run_G(gen_z, gen_c, gen_pc, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution)
+                # TODO: ADD gen_pc condition to discriminator
                 gen_logits = self.run_D(gen_img, gen_c, blur_sigma=blur_sigma)
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
@@ -129,11 +136,24 @@ class StyleGAN2Loss(Loss):
 
         # Density Regularization
         if phase in ['Greg', 'Gboth'] and self.G.rendering_kwargs.get('density_reg', 0) > 0 and self.G.rendering_kwargs['reg_type'] == 'l1':
-            if swapping_prob is not None:
-                c_swapped = torch.roll(gen_c.clone(), 1, 0)
-                c_gen_conditioning = torch.where(torch.rand([], device=gen_c.device) < swapping_prob, c_swapped, gen_c)
+        
+            if swapping_prob is not None: # always None
+                # c_swapped = torch.roll(gen_c.clone(), 1, 0)
+                # c_gen_conditioning = torch.where(torch.rand([], device=gen_c.device) < swapping_prob, c_swapped, gen_c)
+                ######## align pc_gen with c_gen #########
+                B, N, pc_dim = gen_pc.shape
+                st()
+                gen_c_and_pc = torch.cat([gen_c, gen_pc.reshape(B,-1)], dim=-1)
+                c_and_pc_swapped = torch.roll(gen_c_and_pc.clone(), 1, 0)
+                c_and_pc_gen_conditioning = torch.where(torch.rand([], device=gen_c_and_pc.device) < swapping_prob, c_and_pc_swapped, gen_c_and_pc)
+                c_gen_conditioning = c_and_pc_gen_conditioning[...,:-pc_dim]
+                pc_gen_conditioning = c_and_pc_gen_conditioning[...,-pc_dim:].reshape(B,N,pc_dim)
+                assert (pc_gen_conditioning.shape==gen_pc.shape) and (c_gen_conditioning.shape==gen_c.shape)
+                st()
+
             else:
                 c_gen_conditioning = torch.zeros_like(gen_c)
+                pc_gen_conditioning = gen_pc
 
             ws = self.G.mapping(gen_z, c_gen_conditioning, update_emas=False)
             if self.style_mixing_prob > 0:
@@ -144,7 +164,13 @@ class StyleGAN2Loss(Loss):
             initial_coordinates = torch.rand((ws.shape[0], 1000, 3), device=ws.device) * 2 - 1
             perturbed_coordinates = initial_coordinates + torch.randn_like(initial_coordinates) * self.G.rendering_kwargs['density_reg_p_dist']
             all_coordinates = torch.cat([initial_coordinates, perturbed_coordinates], dim=1)
-            sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
+            #### FIXME: the coordinates fed into mixed_sample are both random, why is this?????
+            if isinstance(self.G, VolumeGenerator):
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, pc=pc_gen_conditioning,\
+                     box_warp=self.G.rendering_kwargs['box_warp'], update_emas=False)['sigma']
+                # st()
+            else:
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
             sigma_initial = sigma[:, :sigma.shape[1]//2]
             sigma_perturbed = sigma[:, sigma.shape[1]//2:]
 
@@ -158,6 +184,7 @@ class StyleGAN2Loss(Loss):
                 c_gen_conditioning = torch.where(torch.rand([], device=gen_c.device) < swapping_prob, c_swapped, gen_c)
             else:
                 c_gen_conditioning = torch.zeros_like(gen_c)
+                pc_gen_conditioning = gen_pc
 
             ws = self.G.mapping(gen_z, c_gen_conditioning, update_emas=False)
 
@@ -165,7 +192,12 @@ class StyleGAN2Loss(Loss):
 
             perturbed_coordinates = initial_coordinates + torch.tensor([0, 0, -1], device=ws.device) * (1/256) * self.G.rendering_kwargs['box_warp'] # Behind
             all_coordinates = torch.cat([initial_coordinates, perturbed_coordinates], dim=1)
-            sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
+            if isinstance(self.G, VolumeGenerator):
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, pc=pc_gen_conditioning,\
+                     box_warp=self.G.rendering_kwargs['box_warp'], update_emas=False)['sigma']
+                # st()
+            else:
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
             sigma_initial = sigma[:, :sigma.shape[1]//2]
             sigma_perturbed = sigma[:, sigma.shape[1]//2:]
 
@@ -178,6 +210,7 @@ class StyleGAN2Loss(Loss):
                 c_gen_conditioning = torch.where(torch.rand([], device=gen_c.device) < swapping_prob, c_swapped, gen_c)
             else:
                 c_gen_conditioning = torch.zeros_like(gen_c)
+                pc_gen_conditioning = gen_pc
 
             ws = self.G.mapping(gen_z, c_gen_conditioning, update_emas=False)
             if self.style_mixing_prob > 0:
@@ -188,7 +221,12 @@ class StyleGAN2Loss(Loss):
             initial_coordinates = torch.rand((ws.shape[0], 1000, 3), device=ws.device) * 2 - 1
             perturbed_coordinates = initial_coordinates + torch.randn_like(initial_coordinates) * (1/256) * self.G.rendering_kwargs['box_warp']
             all_coordinates = torch.cat([initial_coordinates, perturbed_coordinates], dim=1)
-            sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
+            if isinstance(self.G, VolumeGenerator):
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, pc=pc_gen_conditioning,\
+                     box_warp=self.G.rendering_kwargs['box_warp'], update_emas=False)['sigma']
+                # st()
+            else:
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
             sigma_initial = sigma[:, :sigma.shape[1]//2]
             sigma_perturbed = sigma[:, sigma.shape[1]//2:]
 
@@ -202,6 +240,7 @@ class StyleGAN2Loss(Loss):
                 c_gen_conditioning = torch.where(torch.rand([], device=gen_c.device) < swapping_prob, c_swapped, gen_c)
             else:
                 c_gen_conditioning = torch.zeros_like(gen_c)
+                pc_gen_conditioning = gen_pc
 
             ws = self.G.mapping(gen_z, c_gen_conditioning, update_emas=False)
 
@@ -209,7 +248,12 @@ class StyleGAN2Loss(Loss):
 
             perturbed_coordinates = initial_coordinates + torch.tensor([0, 0, -1], device=ws.device) * (1/256) * self.G.rendering_kwargs['box_warp'] # Behind
             all_coordinates = torch.cat([initial_coordinates, perturbed_coordinates], dim=1)
-            sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
+            if isinstance(self.G, VolumeGenerator):
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, pc=pc_gen_conditioning,\
+                     box_warp=self.G.rendering_kwargs['box_warp'], update_emas=False)['sigma']
+                # st()
+            else:
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
             sigma_initial = sigma[:, :sigma.shape[1]//2]
             sigma_perturbed = sigma[:, sigma.shape[1]//2:]
 
@@ -222,6 +266,7 @@ class StyleGAN2Loss(Loss):
                 c_gen_conditioning = torch.where(torch.rand([], device=gen_c.device) < swapping_prob, c_swapped, gen_c)
             else:
                 c_gen_conditioning = torch.zeros_like(gen_c)
+                pc_gen_conditioning = gen_pc
 
             ws = self.G.mapping(gen_z, c_gen_conditioning, update_emas=False)
             if self.style_mixing_prob > 0:
@@ -232,7 +277,12 @@ class StyleGAN2Loss(Loss):
             initial_coordinates = torch.rand((ws.shape[0], 1000, 3), device=ws.device) * 2 - 1
             perturbed_coordinates = initial_coordinates + torch.randn_like(initial_coordinates) * (1/256) * self.G.rendering_kwargs['box_warp']
             all_coordinates = torch.cat([initial_coordinates, perturbed_coordinates], dim=1)
-            sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
+            if isinstance(self.G, VolumeGenerator):
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, pc=pc_gen_conditioning,\
+                     box_warp=self.G.rendering_kwargs['box_warp'], update_emas=False)['sigma']
+                # st()
+            else:
+                sigma = self.G.sample_mixed(all_coordinates, torch.randn_like(all_coordinates), ws, update_emas=False)['sigma']
             sigma_initial = sigma[:, :sigma.shape[1]//2]
             sigma_perturbed = sigma[:, sigma.shape[1]//2:]
 
@@ -243,7 +293,7 @@ class StyleGAN2Loss(Loss):
         loss_Dgen = 0
         if phase in ['Dmain', 'Dboth']:
             with torch.autograd.profiler.record_function('Dgen_forward'):
-                gen_img, _gen_ws = self.run_G(gen_z, gen_c, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution, update_emas=True)
+                gen_img, _gen_ws = self.run_G(gen_z, gen_c, gen_pc, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution, update_emas=True)
                 gen_logits = self.run_D(gen_img, gen_c, blur_sigma=blur_sigma, update_emas=True)
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
@@ -260,6 +310,7 @@ class StyleGAN2Loss(Loss):
                 real_img_tmp_image_raw = real_img['image_raw'].detach().requires_grad_(phase in ['Dreg', 'Dboth'])
                 real_img_tmp = {'image': real_img_tmp_image, 'image_raw': real_img_tmp_image_raw}
 
+                # TODO: ADD gen_pc to discriminator
                 real_logits = self.run_D(real_img_tmp, real_c, blur_sigma=blur_sigma)
                 training_stats.report('Loss/scores/real', real_logits)
                 training_stats.report('Loss/signs/real', real_logits.sign())

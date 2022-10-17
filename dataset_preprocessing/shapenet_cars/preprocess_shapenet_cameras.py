@@ -15,14 +15,18 @@
 #############################################################
 
 
+# from distutils.debug import DEBUG
 import json
 import numpy as np
 import os
 from tqdm import tqdm
 import argparse
+from ipdb import set_trace as st
 
 def list_recursive(folderpath):
     return [os.path.join(folderpath, filename) for filename in os.listdir(folderpath)]
+
+DEBUG=False
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -35,6 +39,9 @@ if __name__ == '__main__':
     cameras = {}
     for scene_folder_path in list_recursive(dataset_path):
         if not os.path.isdir(scene_folder_path): continue
+
+        # st() # the sibling folder with rgb should be mesh>: no, only intrinsics and pose
+
         
         for rgb_path in list_recursive(os.path.join(scene_folder_path, 'rgb')):
             relative_path = os.path.relpath(rgb_path, dataset_path)
@@ -53,7 +60,9 @@ if __name__ == '__main__':
                 cx = float(first_line[1])
                 cy = float(first_line[2])
                             
+                ### FIXME: need to adjust this "orig_img_size" if not using 512 image
                 orig_img_size = 512  # cars_train has intrinsics corresponding to image size of 512 * 512
+                
                 intrinsics = np.array(
                     [[focal / orig_img_size, 0.00000000e+00, cx / orig_img_size],
                     [0.00000000e+00, focal / orig_img_size, cy / orig_img_size],
@@ -61,6 +70,8 @@ if __name__ == '__main__':
                 ).tolist()
             
             cameras[relative_path] = {'pose': pose, 'intrinsics': intrinsics, 'scene-name': os.path.basename(scene_folder_path)}
+            if DEBUG:
+                break
     
     with open(os.path.join(dataset_path, 'cameras.json'), 'w') as outfile:
         json.dump(cameras, outfile, indent=4)
@@ -69,7 +80,7 @@ if __name__ == '__main__':
     camera_dataset_file = os.path.join(args.source, 'cameras.json')
 
     with open(camera_dataset_file, "r") as f:
-        cameras = json.load(f)
+        cameras = json.load(f) # same camera file as saved above
         
     dataset = {'labels':[]}
     max_images = args.max_images if args.max_images is not None else len(cameras)
@@ -77,11 +88,16 @@ if __name__ == '__main__':
         if (max_images is not None and i >= max_images): break
 
         pose = np.array(cameras[filename]['pose'])
+        # st()
         intrinsics = np.array(cameras[filename]['intrinsics'])
         label = np.concatenate([pose.reshape(-1), intrinsics.reshape(-1)]).tolist()
             
         image_path = os.path.join(args.source, filename)
         dataset["labels"].append([filename, label])
 
+    # st()
+    # check cameras/dataset
+    print(os.path.join(args.source, 'dataset.json'))
     with open(os.path.join(args.source, 'dataset.json'), "w") as f:
         json.dump(dataset, f, indent=4)
+        

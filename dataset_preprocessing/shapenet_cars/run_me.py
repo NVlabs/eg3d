@@ -17,19 +17,22 @@ import subprocess
 
 if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as working_dir:
+        # working_dir = '/tmp/tmphal02_sj' # /cars_train.zip
+        working_dir = '/home/xuyi/Data'
+        # print(working_dir)
         download_name = 'cars_train.zip'
         url = 'https://drive.google.com/uc?id=1bThUNtIHx4xEQyffVBSf82ABDDh2HlFn'
-        output_dataset_name = 'cars_128.zip'
+        output_dataset_name = 'cars_128_copy.zip'
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         extracted_data_path = os.path.join(working_dir, os.path.splitext(download_name)[0])
 
         print("Downloading data...")
         zipped_dataset = os.path.join(working_dir, download_name)
-        gdown.download(url, zipped_dataset, quiet=False)
+        # gdown.download(url, zipped_dataset, quiet=False)
 
         print("Unzipping downloaded data...")
-        shutil.unpack_archive(zipped_dataset, working_dir)
+        # shutil.unpack_archive(zipped_dataset, working_dir)
 
         print("Converting camera parameters...")
         cmd = f"python {os.path.join(dir_path, 'preprocess_shapenet_cameras.py')} --source={extracted_data_path}"

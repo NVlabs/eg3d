@@ -14,6 +14,7 @@ Expects cam2world matrices that use the OpenCV camera coordinate system conventi
 """
 
 import torch
+from ipdb import set_trace as st
 
 class RaySampler(torch.nn.Module):
     def __init__(self):
@@ -47,6 +48,8 @@ class RaySampler(torch.nn.Module):
         x_cam = uv[:, :, 0].view(N, -1)
         y_cam = uv[:, :, 1].view(N, -1)
         z_cam = torch.ones((N, M), device=cam2world_matrix.device)
+        # if not torch.all(intrinsics==0):
+        #     st()
 
         x_lift = (x_cam - cx.unsqueeze(-1) + cy.unsqueeze(-1)*sk.unsqueeze(-1)/fy.unsqueeze(-1) - sk.unsqueeze(-1)*y_cam/fy.unsqueeze(-1)) / fx.unsqueeze(-1) * z_cam
         y_lift = (y_cam - cy.unsqueeze(-1)) / fy.unsqueeze(-1) * z_cam
