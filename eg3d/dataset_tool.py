@@ -34,6 +34,7 @@ from tqdm import tqdm
 
 from ipdb import set_trace as st
 import pandas as pd
+import point_cloud_utils as pcu
 
 #----------------------------------------------------------------------------
 
@@ -88,6 +89,7 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
     if os.path.isfile(meta_fname):
         with open(meta_fname, 'r') as file:
             labels = json.load(file)['labels']
+            # st()
             if labels is not None:
                 try:
                     pc_rel_paths = { x[0]: x[2] for x in labels }
@@ -101,7 +103,8 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
                 labels = {}
     # print(labels)
     
-    max_idx = maybe_min(len(input_images), max_images)
+    # max_idx = maybe_min(len(input_images), max_images)
+    max_idx = maybe_min(len(labels), max_images)
 
     def iterate_images():
         for idx, fname in enumerate(input_images):
@@ -119,6 +122,17 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
                     # st()
                     # reda pc csv
                     # save as np array
+
+                    if pc_array.shape[0] > NUM_POINTS: # poisson sampling
+                        n_sample_poisson = NUM_POINTS
+                        particle_pos = pc_array[:, :3]
+                        poisson_idx = pcu.downsample_point_cloud_poisson_disk(particle_pos, num_samples=n_sample_poisson)
+                        while poisson_idx.shape[0] < NUM_POINTS:
+                            n_sample_poisson += 50
+                            poisson_idx = pcu.downsample_point_cloud_poisson_disk(particle_pos, num_samples=n_sample_poisson)
+                        poisson_idx = poisson_idx[:NUM_POINTS]
+                        # particle_pos = particle_pos[poisson_idx]
+                        pc_array = pc_array[poisson_idx]    
                 else:
                     continue
             else:
@@ -446,6 +460,8 @@ def convert_dataset(
     if read_pointcloud:
         global READ_POINTCLOUD
         READ_POINTCLOUD = True
+        global NUM_POINTS
+        NUM_POINTS = 1024
 
     PIL.Image.init() # type: ignore
 
@@ -497,8 +513,20 @@ def convert_dataset(
             error(f'Image {archive_fname} attributes must be equal across all images of the dataset.  Got:\n' + '\n'.join(err))
 
         # Save the image as an uncompressed PNG.
+        WHITE_BKGD=True
+        if channels == 4 and WHITE_BKGD:
+            img = img[...,:3] * (img[...,-1:]/255) + (255 - img[...,-1:])
+            img = img.astype(np.uint8)
+            channels = 3
+            # im1 = img.save("geeks_white.png")
+            # st()
         img = PIL.Image.fromarray(img, { 1: 'L', 3: 'RGB', 4: 'RGBA'}[channels])
-        if channels == 4: img = img.convert('RGB')
+        
+        if not WHITE_BKGD:
+            if channels == 4: img = img.convert('RGB')
+            # im1 = img.save("geeks_blk.png")
+            # st()
+
         image_bits = io.BytesIO()
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
