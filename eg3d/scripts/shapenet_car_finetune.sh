@@ -26,9 +26,9 @@ BASE_DIR=/home/xuyi/Repo/eg3d
 
 
 ##---------abo with 3D volume + no pretraining (because feature channel is down to 8)-----------
-DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_copy.zip
+# DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_copy.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed.zip
-# DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
+DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
 BATCH_SIZE=1
 CUDA_VISIBLE_DEVICES=[1]

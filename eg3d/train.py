@@ -33,7 +33,7 @@ import numpy as np
 #----------------------------------------------------------------------------
 
 def subprocess_fn(rank, c, temp_dir):
-    # dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
+    dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     # Init torch.distributed.
     if c.num_gpus > 1:
@@ -57,7 +57,7 @@ def subprocess_fn(rank, c, temp_dir):
 #----------------------------------------------------------------------------
 
 def launch_training(c, desc, outdir, dry_run):
-    # dnnlib.util.Logger(should_flush=True)
+    dnnlib.util.Logger(should_flush=True)
 
     # Pick output directory.
     prev_run_dirs = []
@@ -198,7 +198,7 @@ def parse_comma_separated_list(s):
 
 ## specially for VolumeGenerator
 @click.option('--backbone',    help='whether use triplane or volume.', type=click.Choice(['triplane', 'volume']), required=False, default='triplane')
-@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1500) # default=1024 after finishing pipeline
+@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1024) # default=1024 after finishing pipeline
 @click.option('--num_materials',    help='?.', metavar='INT', type=click.IntRange(min=3), required=False, default=9)
 @click.option('--volume_res',    help='volume resolution.', metavar='INT',  type=click.IntRange(min=16), required=False, default=16) # default=128 after finishing pipeline
 

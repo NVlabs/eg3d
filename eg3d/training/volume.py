@@ -145,7 +145,7 @@ class VolumeGenerator(torch.nn.Module):
 
     def forward(self, z, c, pc, truncation_psi=1, truncation_cutoff=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
         # st()
-        if pc.shape[-2:] != (1500,9):
+        if pc.shape[-2:] != (1024,9):
             st()
 
         # self.log_idx= self.log_idx +1
