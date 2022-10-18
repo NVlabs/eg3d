@@ -7,7 +7,11 @@ def grp_range_torch(a,dev):
     idx = torch.cumsum(a,0)
     id_arr = torch.ones(idx[-1],dtype = torch.int64,device=dev)
     id_arr[0] = 0
-    id_arr[idx[:-1]] = -a[:-1]+1
+    # id_arr[idx[:-1]] = -a[:-1]+1
+    try:
+        id_arr[idx[:-1]] = -a[:-1]+1
+    except:
+        id_arr[idx[:]] = -a[:]+1
     return torch.cumsum(id_arr,0)
     # generate array like [0,1,2,3,4,5,0,1,2,3,4,5,6] where each 0-n gives id to points inside the same grid
 
