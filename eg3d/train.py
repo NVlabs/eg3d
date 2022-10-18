@@ -198,7 +198,7 @@ def parse_comma_separated_list(s):
 
 ## specially for VolumeGenerator
 @click.option('--backbone',    help='whether use triplane or volume.', type=click.Choice(['triplane', 'volume']), required=False, default='triplane')
-@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1500) # default=1024 after finishing pipeline
+@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1024) # default=1024 after finishing pipeline
 @click.option('--num_materials',    help='?.', metavar='INT', type=click.IntRange(min=3), required=False, default=9)
 @click.option('--volume_res',    help='volume resolution.', metavar='INT',  type=click.IntRange(min=16), required=False, default=16) # default=128 after finishing pipeline
 

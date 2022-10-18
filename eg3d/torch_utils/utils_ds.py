@@ -3,8 +3,11 @@ import torch
 import random
 import torch.nn as nn
 
+from ipdb import set_trace as st
+
 def grp_range_torch(a,dev):
     idx = torch.cumsum(a,0)
+    # st()
     id_arr = torch.ones(idx[-1],dtype = torch.int64,device=dev)
     id_arr[0] = 0
     id_arr[idx[:-1]] = -a[:-1]+1
