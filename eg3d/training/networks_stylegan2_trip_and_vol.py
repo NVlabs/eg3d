@@ -528,7 +528,7 @@ class SynthesisNetwork(torch.nn.Module):
         ######### for unet3d ############
         unet_in_channels = 32
         self.unet3d=CostRegNet_Deeper(unet_in_channels, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
-        _grid_size=128
+        _grid_size=64
         self.grid_size = [_grid_size]*3
 
     def forward(self, ws, pc, box_warp, **block_kwargs):
