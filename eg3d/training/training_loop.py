@@ -68,6 +68,7 @@ def setup_snapshot_image_grid(training_set, random_seed=0):
 
     # Load data.
     images, labels, pc_arrays = zip(*[training_set[i] for i in grid_indices])
+    # st()
     # print('getitem types ---------------------->',type(images[0]), type(labels[0]), type(pc_arrays[0]))
     return (gw, gh), np.stack(images), np.stack(labels), np.stack(pc_arrays)
 

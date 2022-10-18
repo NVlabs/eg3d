@@ -1,6 +1,6 @@
 # Train with Shapenet finetune, using 1 GPUs.
 ##-------- common settings ---------------------
-CUDA_VISIBLE_DEVICES=1
+CUDA_VISIBLE_DEVICES=0
 GPUS=1
 BATCH_SIZE=4
 BASE_DIR=/home/xuyi/Repo/eg3d
@@ -28,9 +28,9 @@ BASE_DIR=/home/xuyi/Repo/eg3d
 ##---------abo with 3D volume + no pretraining (because feature channel is down to 8)-----------
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_copy.zip
 DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed.zip
+# DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
 BATCH_SIZE=1
 python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
-  --neural_rendering_resolution_initial=64 \
   --gpus=${GPUS} --batch=${BATCH_SIZE} --gamma=0.3 \
   --backbone volume
