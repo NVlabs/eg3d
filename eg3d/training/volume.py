@@ -12,8 +12,22 @@ import torch
 from torch_utils import persistence
 from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2 import FullyConnectedLayer
-from training.networks_stylegan2_volume import Generator as VolumeBackbone
-from training.networks_stylegan2_volume import FullyConnectedLayer
+
+# ### most basic one: either tri-plane or 3d unet voxel 
+# from training.networks_stylegan2_volume import Generator as VolumeBackbone
+# from training.networks_stylegan2_volume import FullyConnectedLayer
+
+# ### v1: add 1d pc_ws to cur_ws, still tri-plane
+# from training.networks_stylegan2_volume import Generator as VolumeBackbone
+# from training.networks_stylegan2_volume import FullyConnectedLayer
+
+# ### v2: no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
+# from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
+# from training.networks_stylegan2_3dconv import FullyConnectedLayer
+
+# ### v3: independent tri-plane and 3D volume, return both, and sample both
+from training.networks_stylegan2_trip_and_vol import Generator as VolumeBackbone
+from training.networks_stylegan2_trip_and_vol import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
@@ -101,15 +115,20 @@ class VolumeGenerator(torch.nn.Module):
             self._last_planes = planes
 
         # Reshape output into three 32-channel planes
-        try:
-            planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
-        except:
-            # TODO: replace with volume: 
-            # 1. no reshape
-            # 2. .
-            # (do nothing)
-            st()
-            pass
+        if isinstance(planes, tuple):
+            planes = list(planes)
+            planes[0]=planes[0].view(len(planes[0]), 3, 32, planes[0].shape[-2], planes[0].shape[-1])
+            # st()
+        else:
+            try:
+                planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
+            except:
+                # TODO: replace with volume: 
+                # 1. no reshape
+                # 2. .
+                # (do nothing)
+                # st()
+                pass
 
         # Perform volume rendering
         ## already adapted to volume
@@ -139,7 +158,11 @@ class VolumeGenerator(torch.nn.Module):
     def sample_mixed(self, coordinates, directions, ws, pc=None, box_warp=None, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
         # Same as sample, but expects latent vectors 'ws' instead of Gaussian noise 'z'
         planes = self.backbone.synthesis(ws, pc=pc, box_warp=box_warp, update_emas = update_emas, **synthesis_kwargs)
-        if planes.shape[-1]!=planes.shape[-3]:
+        if isinstance(planes, tuple):
+            planes = list(planes)
+            planes[0]=planes[0].view(len(planes[0]), 3, 32, planes[0].shape[-2], planes[0].shape[-1])
+            # st()
+        elif planes.shape[-1]!=planes.shape[-3]:
             planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
 

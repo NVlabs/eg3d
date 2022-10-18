@@ -41,10 +41,19 @@ if __name__ == '__main__':
     blender2opencv = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
     w, h = 512, 512
 
-    
-    for scene_folder_path in list_recursive(dataset_path):
-        if not os.path.isdir(scene_folder_path): continue
+    #### this is for directly listing 
+    # for scene_folder_path in list_recursive(dataset_path):
+        # if not os.path.isdir(scene_folder_path): continue
 
+    #### this is using predefined list, to avoid folders that the datageneration is not complete
+    all_data = []
+    for split in ['train', 'val']:
+        with open(os.path.join(dataset_path, 'meta', f'abo_{split}.txt')) as f:
+            scans = [line.rstrip() for line in f.readlines()]
+            all_data += scans
+    print(len(all_data), all_data)
+    for scene_folder_path_rel in all_data:
+        scene_folder_path = os.path.join(dataset_path, scene_folder_path_rel)
         # st() # the sibling folder with rgb should be mesh>: no, only intrinsics and pose
 
         pointcloud_csv = os.path.join(scene_folder_path,'sample', f"pc.csv")
