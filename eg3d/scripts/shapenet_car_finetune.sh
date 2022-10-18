@@ -3,7 +3,7 @@
 CUDA_VISIBLE_DEVICES=1
 GPUS=1
 BATCH_SIZE=4
-BASE_DIR=/home/xuyi/Repo/eg3d
+BASE_DIR=/home/jialin/repo/eg3d
 
 # ##-------- abo/shapenet with triplane -----------
 # # DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
@@ -29,7 +29,7 @@ BASE_DIR=/home/xuyi/Repo/eg3d
 DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_copy.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
 BATCH_SIZE=1
-python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
+python ../train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
   --neural_rendering_resolution_initial=64 \
   --gpus=${GPUS} --batch=${BATCH_SIZE} --gamma=0.3 \
   --backbone volume
