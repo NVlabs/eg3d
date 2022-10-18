@@ -16,6 +16,7 @@ ray, and computes pixel colors using the volume rendering equation.
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from training.volumetric_rendering.ray_marcher import MipRayMarcher2
 from training.volumetric_rendering import math_utils
@@ -172,7 +173,19 @@ class VolumeImportanceRenderer(torch.nn.Module):
     def run_model(self, planes, decoder, sample_coordinates, sample_directions, options):
         # st()
         # if planes.shape[1]==96:
-        if planes.shape[-3]!=planes.shape[-1]:
+        if isinstance(planes, list):
+            # st()
+            sampled_features_plane = sample_from_planes(self.plane_axes, planes[0], sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
+            sampled_features_volume = sample_from_volume(planes[1], sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
+            
+            mask = torch.ones_like(sampled_features_plane)
+            mask[...,:sampled_features_volume.shape[-1]]*=0
+            p1d=(0,sampled_features_plane.shape[-1]-sampled_features_volume.shape[-1])
+            sampled_features_volume = F.pad(sampled_features_volume, p1d, 'constant', 0)
+            sampled_features = mask*sampled_features_plane + (1-mask)*sampled_features_volume
+            # st()
+
+        elif planes.shape[-3]!=planes.shape[-1]:
             st()
             sampled_features = sample_from_planes(self.plane_axes, planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
         else:

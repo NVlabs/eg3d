@@ -13,13 +13,21 @@ from torch_utils import persistence
 from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2 import FullyConnectedLayer
 
-# ### add 1d pc_ws to cur_ws, still tri-plane
+# ### most basic one: either tri-plane or 3d unet voxel 
 # from training.networks_stylegan2_volume import Generator as VolumeBackbone
 # from training.networks_stylegan2_volume import FullyConnectedLayer
 
-### no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
-from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
-from training.networks_stylegan2_3dconv import FullyConnectedLayer
+# ### v1: add 1d pc_ws to cur_ws, still tri-plane
+# from training.networks_stylegan2_volume import Generator as VolumeBackbone
+# from training.networks_stylegan2_volume import FullyConnectedLayer
+
+# ### v2: no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
+# from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
+# from training.networks_stylegan2_3dconv import FullyConnectedLayer
+
+# ### v3: independent tri-plane and 3D volume, return both, and sample both
+from training.networks_stylegan2_trip_and_vol import Generator as VolumeBackbone
+from training.networks_stylegan2_trip_and_vol import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
@@ -64,8 +72,8 @@ class VolumeGenerator(torch.nn.Module):
         self.backbone = VolumeBackbone(z_dim, c_dim, w_dim, pc_dim=pc_dim, volume_res=volume_res, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         ##
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
-        # self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
-        self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
+        self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
+        # self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
         self.neural_rendering_resolution = 64
         self.rendering_kwargs = rendering_kwargs
     
@@ -107,15 +115,20 @@ class VolumeGenerator(torch.nn.Module):
             self._last_planes = planes
 
         # Reshape output into three 32-channel planes
-        try:
-            planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
-        except:
-            # TODO: replace with volume: 
-            # 1. no reshape
-            # 2. .
-            # (do nothing)
+        if isinstance(planes, tuple):
+            planes = list(planes)
+            planes[0]=planes[0].view(len(planes[0]), 3, 32, planes[0].shape[-2], planes[0].shape[-1])
             # st()
-            pass
+        else:
+            try:
+                planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
+            except:
+                # TODO: replace with volume: 
+                # 1. no reshape
+                # 2. .
+                # (do nothing)
+                # st()
+                pass
 
         # Perform volume rendering
         ## already adapted to volume
@@ -145,7 +158,11 @@ class VolumeGenerator(torch.nn.Module):
     def sample_mixed(self, coordinates, directions, ws, pc=None, box_warp=None, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
         # Same as sample, but expects latent vectors 'ws' instead of Gaussian noise 'z'
         planes = self.backbone.synthesis(ws, pc=pc, box_warp=box_warp, update_emas = update_emas, **synthesis_kwargs)
-        if planes.shape[-1]!=planes.shape[-3]:
+        if isinstance(planes, tuple):
+            planes = list(planes)
+            planes[0]=planes[0].view(len(planes[0]), 3, 32, planes[0].shape[-2], planes[0].shape[-1])
+            # st()
+        elif planes.shape[-1]!=planes.shape[-3]:
             planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
 
