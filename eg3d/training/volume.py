@@ -10,24 +10,10 @@
 
 import torch
 from torch_utils import persistence
-from training.networks_stylegan2 import Generator as StyleGAN2Backbone
+# from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2 import FullyConnectedLayer
-
-# ### most basic one: either tri-plane or 3d unet voxel 
-# from training.networks_stylegan2_volume import Generator as VolumeBackbone
-# from training.networks_stylegan2_volume import FullyConnectedLayer
-
-# ### v1: add 1d pc_ws to cur_ws, still tri-plane
-# from training.networks_stylegan2_volume import Generator as VolumeBackbone
-# from training.networks_stylegan2_volume import FullyConnectedLayer
-
-# ### v2: no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
-# from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
-# from training.networks_stylegan2_3dconv import FullyConnectedLayer
-
-# ### v3: independent tri-plane and 3D volume, return both, and sample both
-from training.networks_stylegan2_trip_and_vol import Generator as VolumeBackbone
-from training.networks_stylegan2_trip_and_vol import FullyConnectedLayer
+from training.networks_stylegan2_pcws import Generator as VolumeBackbone
+from training.networks_stylegan2_pcws import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
