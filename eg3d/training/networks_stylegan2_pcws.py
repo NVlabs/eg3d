@@ -483,6 +483,7 @@ class SynthesisBlock(torch.nn.Module):
 class SynthesisNetwork(torch.nn.Module):
     def __init__(self,
         w_dim,                      # Intermediate latent (W) dimensionality.
+        grid_size,
         img_resolution,             # Output image resolution.
         img_channels,               # Number of color channels.
         channel_base    = 32768,    # Overall multiplier for the number of channels.
@@ -530,8 +531,9 @@ class SynthesisNetwork(torch.nn.Module):
         ######### for unet3d ############
         unet_in_channels = 32
         unet_out_channels = 8
-        self.grid_res = 64
+        self.grid_res = grid_size
         self.grid_size=[self.grid_res]*3
+        st()
         # self.unet3d=CostRegNet_Deeper(unet_in_channels, out_dim=unet_out_channels, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
         self.pc_ws_unet=PcWsUnet(in_channels=unet_in_channels, in_resolution=self.grid_res, \
             block_resolutions=self.block_resolutions, out_dim=unet_out_channels)
@@ -784,7 +786,7 @@ class Generator(torch.nn.Module):
         ##########################################
         self.img_resolution = img_resolution
         self.img_channels = img_channels
-        self.synthesis = SynthesisNetwork(w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
+        self.synthesis = SynthesisNetwork(w_dim=w_dim, grid_size=self.volume_res, img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
         self.num_ws = self.synthesis.num_ws
         self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
 
