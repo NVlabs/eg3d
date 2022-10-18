@@ -18,8 +18,8 @@ from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2_volume import FullyConnectedLayer
 
 ### no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
-from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
-from training.networks_stylegan2_3dconv import FullyConnectedLayer
+from training.networks_stylegan2_syn_unet import Generator as VolumeBackbone
+from training.networks_stylegan2_syn_unet import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
