@@ -644,7 +644,9 @@ class SynthesisNetwork(torch.nn.Module):
 
         pt_num = cat_pt_ind.shape[0]
         # shuffle the data
+       
         cur_dev = cat_pt_fea.get_device()
+        
         shuffled_ind = torch.randperm(pt_num,device = cur_dev)
         cat_pt_fea = cat_pt_fea[shuffled_ind,:]
         cat_pt_ind = cat_pt_ind[shuffled_ind,:]
