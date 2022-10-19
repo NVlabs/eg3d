@@ -281,12 +281,11 @@ def main(**kwargs):
         # c.G_kwargs.pc_dim = np.array([opts.num_points, opts.num_materials]) # num_pc or the num_material??
         c.G_kwargs.pc_dim = [opts.num_points, opts.num_materials]
         c.G_kwargs.volume_res = opts.volume_res
-
-
+        c.D_kwargs.class_name = 'training.volume_discriminator.VolumeDualDiscriminator'
         
     else:
         c.G_kwargs.class_name = 'training.triplane.TriPlaneGenerator'
-    c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
+        c.D_kwargs.class_name = 'training._discriminator.DualDiscriminator'
     c.G_kwargs.fused_modconv_default = 'inference_only' # Speed up training by using regular convolutions instead of grouped convolutions.
     c.loss_kwargs.filter_mode = 'antialiased' # Filter mode for raw images ['antialiased', 'none', float [0-1]]
     c.D_kwargs.disc_c_noise = opts.disc_c_noise # Regularization for discriminator pose conditioning

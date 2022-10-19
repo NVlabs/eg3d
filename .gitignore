@@ -27,3 +27,9 @@ vids/
 stylegan3/results
 eg3d/results
 eg3d_results
+eg3d/torch_utils/tmp/.ninja_deps
+eg3d/torch_utils/tmp/.ninja_log
+eg3d/torch_utils/tmp/build.ninja
+eg3d/torch_utils/tmp/chamfer_3D.so
+eg3d/torch_utils/tmp/chamfer_cuda.o
+eg3d/torch_utils/tmp/chamfer3D.cuda.o

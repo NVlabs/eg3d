@@ -1,6 +1,6 @@
 # Train with Shapenet finetune, using 1 GPUs.
 ##-------- common settings ---------------------
-CUDA_VISIBLE_DEVICES=1
+CUDA_VISIBLE_DEVICES=0
 GPUS=1
 BATCH_SIZE=4
 BASE_DIR=/home/jialin/repo/eg3d
