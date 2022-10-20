@@ -12,6 +12,7 @@
 
 import os
 import re
+
 from typing import List, Optional, Tuple, Union
 
 import click
@@ -110,7 +111,7 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
     elif cfg == 'Shapenet':
         focal_length = 1.7074
     elif cfg == 'ABO':
-        focal_length = 1.3889
+        focal_length = 0.3889
     else:
         print("Not supported dataset type")
     intrinsics = torch.tensor([[focal_length, 0, 0.5], [0, focal_length, 0.5], [0, 0, 1]], device=device)
@@ -121,9 +122,9 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
     
     if cfg == 'ABO':
         # st()
-        _ = G.synthesis(ws[:1], c[:1], PC_FILES[:1])
+        _ = G.synthesis(ws[:1], c[:1], pc=PC_FILES[:1])
     else:
-        st()
+        # st()
         _ = G.synthesis(ws[:1], c[:1]) # warm up
     ws = ws.reshape(grid_h, grid_w, num_keyframes, *ws.shape[1:])
 
@@ -287,7 +288,7 @@ def parse_tuple(s: Union[str, Tuple[int,int]]) -> Tuple[int, int]:
 @click.option('--shapes', type=bool, help='Gen shapes for shape interpolation', default=False, show_default=True)
 @click.option('--interpolate', type=bool, help='Interpolate between seeds', default=True, show_default=True)
 @click.option('--pointcloud_files', cls=PythonLiteralOption, default=[])
-@click.option('--data_zip', help='Dataset in zip format', type=str, required=True, metavar='DIR')
+@click.option('--data_zip', help='Dataset in zip format', type=str, required=False, metavar='DIR')
 
 def generate_images(
     network_pkl: str,
@@ -352,31 +353,47 @@ def generate_images(
     
     # st()
     global PC_FILES 
-    if len(pointcloud_files) !=0:
-        PC_FILES = pointcloud_files
-    else:
-        def _file_ext(fname):
-            return os.path.splitext(fname)[1].lower()
+    
+    def _file_ext(fname):
+        return os.path.splitext(fname)[1].lower()
 
-        def _get_zipfile():
-            # assert self._type == 'zip'
-            _zipfile = zipfile.ZipFile(data_zip)
-            return _zipfile
+    def _get_zipfile():
+        # assert self._type == 'zip'
+        _zipfile = zipfile.ZipFile(data_zip)
+        return _zipfile
+    
+    
+    def _load_raw_pointcloud(raw_idx):
+        fname = _pc_fnames[raw_idx]
         
+        with _get_zipfile().open(fname, 'r') as f:
+            df = pd.read_csv(f, header=None)
+            pc_array = df.values.astype(np.float32)
+        return pc_array
+    
+
+    def _load_raw_pointcloud_by_name(f):
+        # fname = _pc_fnames[raw_idx]
+        
+        # with _get_zipfile().open(fname, 'r') as f:
+        pc_df = pd.read_csv(f)
+        pc_array = pc_df[['x','y','z','r','g','b','a', 'metallic','roughness']].values.astype(np.float32)
+        # pc_array = df.values.astype(np.float32)
+        return pc_array
+    
+
+    if len(pointcloud_files) !=0:
+        # PC_FILES = pointcloud_files
+        PC_FILES = torch.tensor(np.asarray([_load_raw_pointcloud_by_name(i) for i in pointcloud_files]), device=device)
+        PC_FILES = PC_FILES.repeat(4,1,1)
+    else:
+        print("use predefined pointcloud")
         _all_fnames = set(_get_zipfile().namelist())
         _pc_fnames = sorted(fname for fname in _all_fnames if _file_ext(fname) == '.csv')
         # st()
         indices = [205,307, 0,102]
-
-        def _load_raw_pointcloud(raw_idx):
-            fname = _pc_fnames[raw_idx]
-            
-            with _get_zipfile().open(fname, 'r') as f:
-                df = pd.read_csv(f, header=None)
-                pc_array = df.values.astype(np.float32)
-            return pc_array
-
         PC_FILES = torch.tensor(np.asarray([_load_raw_pointcloud(i) for i in indices]), device=device) # B, 1024, 9
+        
     
 
     if interpolate:

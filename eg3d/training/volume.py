@@ -137,6 +137,7 @@ class VolumeGenerator(torch.nn.Module):
 
         # Run superresolution to get final image
         rgb_image = feature_image[:, :3]
+        # st()
         sr_image = self.superresolution(rgb_image, feature_image, ws, noise_mode=self.rendering_kwargs['superresolution_noise_mode'], **{k:synthesis_kwargs[k] for k in synthesis_kwargs.keys() if k != 'noise_mode'})
 
         return {'image': sr_image, 'image_raw': rgb_image, 'image_depth': depth_image}
@@ -160,7 +161,6 @@ class VolumeGenerator(torch.nn.Module):
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
 
     def forward(self, z, c, pc, truncation_psi=1, truncation_cutoff=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
-        # st()
         if pc.shape[-2:] != (1024,9):
             st()
 
@@ -201,4 +201,5 @@ class OSGDecoder(torch.nn.Module):
         # st()
         rgb = torch.sigmoid(x[..., 1:])*(1 + 2*0.001) - 0.001 # Uses sigmoid clamping from MipNeRF
         sigma = x[..., 0:1]
+        # st()
         return {'rgb': rgb, 'sigma': sigma}

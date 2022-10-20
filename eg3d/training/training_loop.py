@@ -435,7 +435,8 @@ def training_loop(
                     pickle.dump(snapshot_data, f)
 
         # Evaluate metrics.
-        if (snapshot_data is not None) and (len(metrics) > 0):
+        # if (snapshot_data is not None) and (len(metrics) > 0):
+        if (snapshot_data is not None) and (len(metrics) > 0) and batch_idx %10 ==0:
             if rank == 0:
                 print(run_dir)
                 print('Evaluating metrics...')

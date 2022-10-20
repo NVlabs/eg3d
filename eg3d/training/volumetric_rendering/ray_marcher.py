@@ -51,7 +51,9 @@ class MipRayMarcher2(nn.Module):
         composite_depth = torch.nan_to_num(composite_depth, float('inf'))
         composite_depth = torch.clamp(composite_depth, torch.min(depths), torch.max(depths))
 
+        # st()
         if rendering_options.get('white_back', False):
+        # if rendering_options.get('white_back') == True:
             composite_rgb = composite_rgb + 1 - weight_total
 
         composite_rgb = composite_rgb * 2 - 1 # Scale to (-1, 1)

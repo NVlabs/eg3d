@@ -27,18 +27,10 @@ BASE_DIR=/home/xuyi/Repo/eg3d
 
 ##---------abo with 3D volume + no pretraining (because feature channel is down to 8)-----------
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_copy.zip
-<<<<<<< HEAD
 DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
 BATCH_SIZE=1
-=======
-# DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed.zip
-DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
-# DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
-BATCH_SIZE=1
-CUDA_VISIBLE_DEVICES=[1]
->>>>>>> 3fd25be10fecbd518e6bff0333a4644f458c3a3a
 python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
   --gpus=${GPUS} --batch=${BATCH_SIZE} --gamma=0.3 \
-  --backbone volume
+  --backbone volume --decoder_dim 8

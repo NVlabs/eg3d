@@ -115,7 +115,6 @@ class VolumeImportanceRenderer(torch.nn.Module):
         self.plane_axes = generate_planes()
 
     def forward(self, planes, decoder, ray_origins, ray_directions, rendering_options):
-        # st()
         # planes.shape: torch.Size([4, 8, 64, 64, 64])
         self.plane_axes = self.plane_axes.to(ray_origins.device)
 
@@ -139,11 +138,13 @@ class VolumeImportanceRenderer(torch.nn.Module):
 
         out = self.run_model(planes, decoder, sample_coordinates, sample_directions, rendering_options)
         colors_coarse = out['rgb']
+        
         densities_coarse = out['sigma']
         colors_coarse = colors_coarse.reshape(batch_size, num_rays, samples_per_ray, colors_coarse.shape[-1])
         densities_coarse = densities_coarse.reshape(batch_size, num_rays, samples_per_ray, 1)
 
         # Fine Pass
+        # st()
         N_importance = rendering_options['depth_resolution_importance']
         if N_importance > 0:
             _, _, weights = self.ray_marcher(colors_coarse, densities_coarse, depths_coarse, rendering_options)
