@@ -14,6 +14,7 @@ archive
 *.ply
 eval
 out
+__pycache__
 
 # evaluation:
 temp/
