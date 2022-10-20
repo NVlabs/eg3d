@@ -10,24 +10,16 @@
 
 import torch
 from torch_utils import persistence
-from training.networks_stylegan2 import Generator as StyleGAN2Backbone
+# from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 # from training.networks_stylegan2 import FullyConnectedLayer
 
-# ### most basic one: either tri-plane or 3d unet voxel 
+# ### add 1d pc_ws to cur_ws, still tri-plane
 # from training.networks_stylegan2_volume import Generator as VolumeBackbone
 # from training.networks_stylegan2_volume import FullyConnectedLayer
 
-# ### v1: add 1d pc_ws to cur_ws, still tri-plane
-# from training.networks_stylegan2_volume import Generator as VolumeBackbone
-# from training.networks_stylegan2_volume import FullyConnectedLayer
-
-# ### v2: no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
-# from training.networks_stylegan2_3dconv import Generator as VolumeBackbone
-# from training.networks_stylegan2_3dconv import FullyConnectedLayer
-
-# ### v3: independent tri-plane and 3D volume, return both, and sample both
-from training.networks_stylegan2_trip_and_vol import Generator as VolumeBackbone
-from training.networks_stylegan2_trip_and_vol import FullyConnectedLayer
+### no pc_ws, change snthesis_block to 3D, where output img is volume, and cat with pointcloud volume
+from training.networks_stylegan2_syn_unet import Generator as VolumeBackbone
+from training.networks_stylegan2_syn_unet import FullyConnectedLayer
 
 # from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.renderer_volume import VolumeImportanceRenderer
@@ -47,6 +39,7 @@ class VolumeGenerator(torch.nn.Module):
         ####### newly added parameters ######
         pc_dim,                     # Conditioning poincloud (PC) dimensionality.
         volume_res,                 # Volume resolution.
+        decoder_dim,
         ##########################################
         sr_num_fp16_res     = 0,
         mapping_kwargs      = {},   # Arguments for MappingNetwork.
@@ -72,8 +65,8 @@ class VolumeGenerator(torch.nn.Module):
         self.backbone = VolumeBackbone(z_dim, c_dim, w_dim, pc_dim=pc_dim, volume_res=volume_res, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         ##
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
-        self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
-        # self.decoder = OSGDecoder(8, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
+        # self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
+        self.decoder = OSGDecoder(decoder_dim, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
         self.neural_rendering_resolution = 64
         self.rendering_kwargs = rendering_kwargs
     
@@ -144,6 +137,7 @@ class VolumeGenerator(torch.nn.Module):
 
         # Run superresolution to get final image
         rgb_image = feature_image[:, :3]
+        # st()
         sr_image = self.superresolution(rgb_image, feature_image, ws, noise_mode=self.rendering_kwargs['superresolution_noise_mode'], **{k:synthesis_kwargs[k] for k in synthesis_kwargs.keys() if k != 'noise_mode'})
 
         return {'image': sr_image, 'image_raw': rgb_image, 'image_depth': depth_image}
@@ -167,8 +161,7 @@ class VolumeGenerator(torch.nn.Module):
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
 
     def forward(self, z, c, pc, truncation_psi=1, truncation_cutoff=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
-        # st()
-        if pc.shape[-2:] != (1500,9):
+        if pc.shape[-2:] != (1024,9):
             st()
 
         # self.log_idx= self.log_idx +1
@@ -208,4 +201,5 @@ class OSGDecoder(torch.nn.Module):
         # st()
         rgb = torch.sigmoid(x[..., 1:])*(1 + 2*0.001) - 0.001 # Uses sigmoid clamping from MipNeRF
         sigma = x[..., 0:1]
+        # st()
         return {'rgb': rgb, 'sigma': sigma}

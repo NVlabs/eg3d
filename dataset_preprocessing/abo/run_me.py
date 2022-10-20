@@ -22,7 +22,9 @@ if __name__ == '__main__':
         # print(working_dir)
         # download_name = 'cars_train.zip'
         # url = 'https://drive.google.com/uc?id=1bThUNtIHx4xEQyffVBSf82ABDDh2HlFn'
-        output_dataset_name = 'abo_128_completed.zip'
+        # output_dataset_name = 'abo_128_completed.zip'
+        # output_dataset_name = 'abo_128_completed_white.zip'
+        output_dataset_name = 'abo_512_completed_white.zip'
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # extracted_data_path = os.path.join(working_dir, os.path.splitext(download_name)[0])
@@ -40,5 +42,5 @@ if __name__ == '__main__':
 
         print("Creating dataset zip...")
         cmd = f"python {os.path.join(dir_path, '../../eg3d', 'dataset_tool.py')}"
-        cmd += f" --source {extracted_data_path} --dest {output_dataset_name} --resolution 128x128 --read_pointcloud"
+        cmd += f" --source {extracted_data_path} --dest {output_dataset_name} --resolution 512x512 --read_pointcloud"
         subprocess.run([cmd], shell=True)

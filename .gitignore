@@ -25,3 +25,6 @@ vids/
 stylegan3/results
 eg3d/results
 eg3d_results
+
+*runs/
+*ipynb

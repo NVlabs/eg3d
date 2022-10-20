@@ -198,9 +198,11 @@ def parse_comma_separated_list(s):
 
 ## specially for VolumeGenerator
 @click.option('--backbone',    help='whether use triplane or volume.', type=click.Choice(['triplane', 'volume']), required=False, default='triplane')
-@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1500) # default=1024 after finishing pipeline
+@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1024) # default=1024 after finishing pipeline
 @click.option('--num_materials',    help='?.', metavar='INT', type=click.IntRange(min=3), required=False, default=9)
-@click.option('--volume_res',    help='volume resolution.', metavar='INT',  type=click.IntRange(min=16), required=False, default=16) # default=128 after finishing pipeline
+@click.option('--volume_res',    help='volume resolution.', metavar='INT',  type=click.IntRange(min=16), required=False, default=128) # default=128 after finishing pipeline
+@click.option('--decoder_dim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
+@click.option('--decoder_outdim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
 
 def main(**kwargs):
     """Train a GAN using the techniques described in the paper
@@ -281,9 +283,10 @@ def main(**kwargs):
         # c.G_kwargs.pc_dim = np.array([opts.num_points, opts.num_materials]) # num_pc or the num_material??
         c.G_kwargs.pc_dim = [opts.num_points, opts.num_materials]
         c.G_kwargs.volume_res = opts.volume_res
+        c.G_kwargs.decoder_dim = opts.decoder_dim
+        # c.G_kwargs.decoder_outdim = opts.decoder_outdim
 
 
-        
     else:
         c.G_kwargs.class_name = 'training.triplane.TriPlaneGenerator'
     c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
@@ -360,7 +363,9 @@ def main(**kwargs):
             'white_back': True,
             'avg_camera_radius': 1.7,
             'avg_camera_pivot': [0, 0, 0],
+            # 'decoder_output_dim': 8,
         })
+     
     else:
         assert False, "Need to specify config"
 

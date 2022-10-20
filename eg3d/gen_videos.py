@@ -12,6 +12,7 @@
 
 import os
 import re
+
 from typing import List, Optional, Tuple, Union
 
 import click
@@ -27,6 +28,19 @@ import legacy
 
 from camera_utils import LookAtPoseSampler
 from torch_utils import misc
+from ipdb import set_trace as st
+import zipfile
+import pandas as pd
+
+#----------------------------------------------------------------------------
+import ast
+class PythonLiteralOption(click.Option):
+
+    def type_cast_value(self, ctx, value):
+        try:
+            return ast.literal_eval(value)
+        except:
+            raise click.BadParameter(value)
 #----------------------------------------------------------------------------
 
 def layout_grid(img, grid_w=None, grid_h=1, float_to_uint8=True, chw_to_hwc=True, to_numpy=True):
@@ -91,12 +105,27 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
     camera_lookat_point = torch.tensor(G.rendering_kwargs['avg_camera_pivot'], device=device)
     zs = torch.from_numpy(np.stack([np.random.RandomState(seed).randn(G.z_dim) for seed in all_seeds])).to(device)
     cam2world_pose = LookAtPoseSampler.sample(3.14/2, 3.14/2, camera_lookat_point, radius=G.rendering_kwargs['avg_camera_radius'], device=device)
-    focal_length = 4.2647 if cfg != 'Shapenet' else 1.7074 # shapenet has higher FOV
+    # focal_length = 4.2647 if (cfg != 'Shapenet' or cfg != 'ABO') else 1.7074 # shapenet has higher FOV
+    if (cfg != 'Shapenet' or cfg != 'ABO'):
+        focal_length = 4.2647
+    elif cfg == 'Shapenet':
+        focal_length = 1.7074
+    elif cfg == 'ABO':
+        focal_length = 0.3889
+    else:
+        print("Not supported dataset type")
     intrinsics = torch.tensor([[focal_length, 0, 0.5], [0, focal_length, 0.5], [0, 0, 1]], device=device)
     c = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
     c = c.repeat(len(zs), 1)
+
     ws = G.mapping(z=zs, c=c, truncation_psi=psi, truncation_cutoff=truncation_cutoff)
-    _ = G.synthesis(ws[:1], c[:1]) # warm up
+    
+    if cfg == 'ABO':
+        # st()
+        _ = G.synthesis(ws[:1], c[:1], pc=PC_FILES[:1])
+    else:
+        # st()
+        _ = G.synthesis(ws[:1], c[:1]) # warm up
     ws = ws.reshape(grid_h, grid_w, num_keyframes, *ws.shape[1:])
 
     # Interpolation.
@@ -129,12 +158,12 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
                                                         3.14/2 -0.05 + pitch_range * np.cos(2 * 3.14 * frame_idx / (num_keyframes * w_frames)),
                                                         camera_lookat_point, radius=G.rendering_kwargs['avg_camera_radius'], device=device)
                 all_poses.append(cam2world_pose.squeeze().cpu().numpy())
-                focal_length = 4.2647 if cfg != 'Shapenet' else 1.7074 # shapenet has higher FOV
+                focal_length = 4.2647 if (cfg != 'Shapenet' or cfg != 'ABO')  else 1.7074 # shapenet has higher FOV
                 intrinsics = torch.tensor([[focal_length, 0, 0.5], [0, focal_length, 0.5], [0, 0, 1]], device=device)
                 c = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
 
                 interp = grid[yi][xi]
-                w = torch.from_numpy(interp(frame_idx / w_frames)).to(device)
+                w = torch.from_numpy(interp(frame_idx / w_frames).astype(np.float32)).to(device)
 
                 entangle = 'camera'
                 if entangle == 'conditioning':
@@ -145,7 +174,10 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
                     w_c = G.mapping(z=zs[0:1], c=c[0:1], truncation_psi=psi, truncation_cutoff=truncation_cutoff)
                     img = G.synthesis(ws=w_c, c=c_forward, noise_mode='const')[image_mode][0]
                 elif entangle == 'camera':
-                    img = G.synthesis(ws=w.unsqueeze(0), c=c[0:1], noise_mode='const')[image_mode][0]
+                    if cfg == 'ABO':
+                        pass
+                    # st()
+                    img = G.synthesis(ws=w.unsqueeze(0), c=c[0:1], pc=PC_FILES[0:1], noise_mode='const')[image_mode][0]
                 elif entangle == 'both':
                     w_c = G.mapping(z=zs[0:1], c=c[0:1], truncation_psi=psi, truncation_cutoff=truncation_cutoff)
                     img = G.synthesis(ws=w_c, c=c[0:1], noise_mode='const')[image_mode][0]
@@ -249,12 +281,14 @@ def parse_tuple(s: Union[str, Tuple[int,int]]) -> Tuple[int, int]:
 @click.option('--trunc-cutoff', 'truncation_cutoff', type=int, help='Truncation cutoff', default=14, show_default=True)
 @click.option('--outdir', help='Output directory', type=str, required=True, metavar='DIR')
 @click.option('--reload_modules', help='Overload persistent modules?', type=bool, required=False, metavar='BOOL', default=False, show_default=True)
-@click.option('--cfg', help='Config', type=click.Choice(['FFHQ', 'AFHQ', 'Shapenet']), required=False, metavar='STR', default='FFHQ', show_default=True)
+@click.option('--cfg', help='Config', type=click.Choice(['FFHQ', 'AFHQ', 'Shapenet', 'ABO']), required=False, metavar='STR', default='FFHQ', show_default=True)
 @click.option('--image_mode', help='Image mode', type=click.Choice(['image', 'image_depth', 'image_raw']), required=False, metavar='STR', default='image', show_default=True)
 @click.option('--sample_mult', 'sampling_multiplier', type=float, help='Multiplier for depth sampling in volume rendering', default=2, show_default=True)
 @click.option('--nrr', type=int, help='Neural rendering resolution override', default=None, show_default=True)
 @click.option('--shapes', type=bool, help='Gen shapes for shape interpolation', default=False, show_default=True)
 @click.option('--interpolate', type=bool, help='Interpolate between seeds', default=True, show_default=True)
+@click.option('--pointcloud_files', cls=PythonLiteralOption, default=[])
+@click.option('--data_zip', help='Dataset in zip format', type=str, required=False, metavar='DIR')
 
 def generate_images(
     network_pkl: str,
@@ -268,6 +302,8 @@ def generate_images(
     outdir: str,
     reload_modules: bool,
     cfg: str,
+    pointcloud_files: List[str],
+    data_zip: str,
     image_mode: str,
     sampling_multiplier: float,
     nrr: Optional[int],
@@ -314,6 +350,52 @@ def generate_images(
     if truncation_psi == 1.0:
         truncation_cutoff = 14 # no truncation so doesn't matter where we cutoff
 
+    
+    # st()
+    global PC_FILES 
+    
+    def _file_ext(fname):
+        return os.path.splitext(fname)[1].lower()
+
+    def _get_zipfile():
+        # assert self._type == 'zip'
+        _zipfile = zipfile.ZipFile(data_zip)
+        return _zipfile
+    
+    
+    def _load_raw_pointcloud(raw_idx):
+        fname = _pc_fnames[raw_idx]
+        
+        with _get_zipfile().open(fname, 'r') as f:
+            df = pd.read_csv(f, header=None)
+            pc_array = df.values.astype(np.float32)
+        return pc_array
+    
+
+    def _load_raw_pointcloud_by_name(f):
+        # fname = _pc_fnames[raw_idx]
+        
+        # with _get_zipfile().open(fname, 'r') as f:
+        pc_df = pd.read_csv(f)
+        pc_array = pc_df[['x','y','z','r','g','b','a', 'metallic','roughness']].values.astype(np.float32)
+        # pc_array = df.values.astype(np.float32)
+        return pc_array
+    
+
+    if len(pointcloud_files) !=0:
+        # PC_FILES = pointcloud_files
+        PC_FILES = torch.tensor(np.asarray([_load_raw_pointcloud_by_name(i) for i in pointcloud_files]), device=device)
+        PC_FILES = PC_FILES.repeat(4,1,1)
+    else:
+        print("use predefined pointcloud")
+        _all_fnames = set(_get_zipfile().namelist())
+        _pc_fnames = sorted(fname for fname in _all_fnames if _file_ext(fname) == '.csv')
+        # st()
+        indices = [205,307, 0,102]
+        PC_FILES = torch.tensor(np.asarray([_load_raw_pointcloud(i) for i in indices]), device=device) # B, 1024, 9
+        
+    
+
     if interpolate:
         output = os.path.join(outdir, 'interpolation.mp4')
         gen_interp_video(G=G, mp4=output, bitrate='10M', grid_dims=grid, num_keyframes=num_keyframes, w_frames=w_frames, seeds=seeds, shuffle_seed=shuffle_seed, psi=truncation_psi, truncation_cutoff=truncation_cutoff, cfg=cfg, image_mode=image_mode, gen_shapes=shapes)
@@ -326,6 +408,8 @@ def generate_images(
 #----------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    # global pointcloud_files
+    
     generate_images() # pylint: disable=no-value-for-parameter
 
 #----------------------------------------------------------------------------
