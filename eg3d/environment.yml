@@ -35,3 +35,10 @@ dependencies:
     - psutil
     - mrcfile
     - tensorboard
+    - click
+    - ipdb
+    - pandas
+    - requests
+    - spconv
+    - https://data.pyg.org/whl/torch-1.11.0%2Bcu113/torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+    
