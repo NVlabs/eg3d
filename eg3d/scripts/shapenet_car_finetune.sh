@@ -29,6 +29,7 @@ BASE_DIR=/home/xuyi/Repo/eg3d
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_copy.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed.zip
 DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
+# DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_512_completed_white.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/shapenet_cars/cars_128_copy.zip
 BATCH_SIZE=1
 python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
