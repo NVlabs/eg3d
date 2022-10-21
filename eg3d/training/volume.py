@@ -66,7 +66,10 @@ class VolumeGenerator(torch.nn.Module):
         ##
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
         # self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})
-        self.decoder = OSGDecoder(decoder_dim, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32}) # input_dim=8 for volume
+        self.decoder = OSGDecoder(decoder_dim, \
+            {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), \
+            'decoder_output_dim': 32, \
+            'use_ray_directions': rendering_kwargs.get('use_ray_directions', False)}) # input_dim=8 for volume
         self.neural_rendering_resolution = 64
         self.rendering_kwargs = rendering_kwargs
     
@@ -84,7 +87,6 @@ class VolumeGenerator(torch.nn.Module):
     def synthesis(self, ws, c, pc=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
         cam2world_matrix = c[:, :16].view(-1, 4, 4)
         intrinsics = c[:, 16:25].view(-1, 3, 3)
-        st()
 
         if neural_rendering_resolution is None:
             neural_rendering_resolution = self.neural_rendering_resolution
@@ -181,16 +183,28 @@ class OSGDecoder(torch.nn.Module):
         self.hidden_dim = 64
         # if n_features != 8:
         #     st()
+
+        self.use_ray_directions = options['use_ray_directions']
+        if self.use_ray_directions:
+            n_features += 3
+            
+
         self.net = torch.nn.Sequential(
             FullyConnectedLayer(n_features, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
             torch.nn.Softplus(),
             FullyConnectedLayer(self.hidden_dim, 1 + options['decoder_output_dim'], lr_multiplier=options['decoder_lr_mul'])
         )
         
+        
     def forward(self, sampled_features, ray_directions):
         # st() # x.shape
         # Aggregate features
+        
         sampled_features = sampled_features.mean(1) # tri-plane: mean of 3 planes; volume: only one volume, so mean() is the same as squeeze
+        
+        if self.use_ray_directions:
+            sampled_features = torch.cat([sampled_features, ray_directions], -1)
+
         x = sampled_features
 
         N, M, C = x.shape
@@ -198,8 +212,8 @@ class OSGDecoder(torch.nn.Module):
 
         x = self.net(x)
         x = x.view(N, M, -1)
-        # st()
+       
         rgb = torch.sigmoid(x[..., 1:])*(1 + 2*0.001) - 0.001 # Uses sigmoid clamping from MipNeRF
         sigma = x[..., 0:1]
-        # st()
+       
         return {'rgb': rgb, 'sigma': sigma}
