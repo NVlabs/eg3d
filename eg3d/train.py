@@ -285,6 +285,7 @@ def main(**kwargs):
         c.G_kwargs.volume_res = opts.volume_res
         c.G_kwargs.decoder_dim = opts.decoder_dim
         c.D_kwargs.class_name = 'training.volume_discriminator.VolumeDualDiscriminator'
+        # c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
         # c.G_kwargs.decoder_outdim = opts.decoder_outdim
 
 

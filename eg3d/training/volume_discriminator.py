@@ -106,6 +106,37 @@ def filtered_resizing(image_orig_tensor, size, f, filter_mode='antialiased'):
 
 from torch_utils.chamfer3D.dist_chamfer_3D import chamfer_3DDist
 #----------------------------------------------------------------------------
+@persistence.persistent_class
+class ChamferDistanceBlock(torch.nn.Module):
+    def __init__(self, direction=0):
+        super().__init__()
+        self.direction = direction
+        self.ray_sampler = RaySampler()
+        self.chamfer3d = chamfer_3DDist()
+
+    def forward(self, c, img, pc, neural_rendering_resolution):
+        dtype = torch.float32
+        memory_format = torch.contiguous_format
+        _shape = (img['image'].shape[0],1)
+        _device = img['image'].device
+        if pc is None or 'image_depth' not in img:
+            return torch.zeros(_shape).to(device=_device, dtype=dtype, memory_format=memory_format)
+        image_depth = img['image_depth'].view(img['image'].shape[0], -1, 1)
+        cam2world_matrix = c[:, :16].view(-1, 4, 4)
+        intrinsics = c[:, 16:25].view(-1, 3, 3)
+        
+        if neural_rendering_resolution is None:
+            neural_rendering_resolution = self.neural_rendering_resolution
+        else:
+            self.neural_rendering_resolution = neural_rendering_resolution
+
+        # Create a batch of rays for volume rendering
+        ray_origins, ray_directions = self.ray_sampler(cam2world_matrix, intrinsics, neural_rendering_resolution)
+        pred_pos = image_depth * ray_directions + ray_origins
+        gt_pos = pc[...,:3]
+        chamfer_loss = self.chamfer3d(pred_pos, gt_pos)[self.direction]
+        chamfer_loss = torch.mean(chamfer_loss, dim=1).to(device=_device, dtype=dtype, memory_format=memory_format)
+        return chamfer_loss.view(_shape)
 
 @persistence.persistent_class
 class VolumeDualDiscriminator(torch.nn.Module):
@@ -134,7 +165,7 @@ class VolumeDualDiscriminator(torch.nn.Module):
         self.block_resolutions = [2 ** i for i in range(self.img_resolution_log2, 2, -1)]
         channels_dict = {res: min(channel_base // res, channel_max) for res in self.block_resolutions + [4]}
         fp16_resolution = max(2 ** (self.img_resolution_log2 + 1 - num_fp16_res), 8)
-        self.ray_sampler = RaySampler()
+        
         self.neural_rendering_resolution = 64
         if cmap_dim is None:
             cmap_dim = channels_dict[4]
@@ -157,44 +188,30 @@ class VolumeDualDiscriminator(torch.nn.Module):
         self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
         self.disc_c_noise = disc_c_noise
-        self.chamfer3d = chamfer_3DDist()
+        self.chamfer3d = ChamferDistanceBlock()
 
     def forward(self, img, c, pc=None, neural_rendering_resolution=None, update_emas=False, **block_kwargs):
         image_raw = filtered_resizing(img['image_raw'], size=img['image'].shape[-1], f=self.resample_filter)
-
         _ = update_emas # unused
-
-        chamfer_loss = None
-        if pc is not None and 'image_depth' in img:
-            image_depth = img['image_depth'].view(4, -1, 1)
-            cam2world_matrix = c[:, :16].view(-1, 4, 4)
-            intrinsics = c[:, 16:25].view(-1, 3, 3)
-            
-            if neural_rendering_resolution is None:
-                neural_rendering_resolution = self.neural_rendering_resolution
-            else:
-                self.neural_rendering_resolution = neural_rendering_resolution
-
-            # Create a batch of rays for volume rendering
-            ray_origins, ray_directions = self.ray_sampler(cam2world_matrix, intrinsics, neural_rendering_resolution)
-            pred_pos = image_depth * ray_directions + ray_origins
-            gt_pos = pc[...,:3]
-            chamfer_loss =  self.chamfer3d(pred_pos, gt_pos)
+        if neural_rendering_resolution is None:
+            neural_rendering_resolution = self.neural_rendering_resolution
+        else:
+            self.neural_rendering_resolution = neural_rendering_resolution
 
         x = None
-        img = torch.cat([img['image'], image_raw], 1)
+        image = torch.cat([img['image'], image_raw], 1)
 
         for res in self.block_resolutions:
             block = getattr(self, f'b{res}')
-            x, img = block(x, img, **block_kwargs)
+            x, image = block(x, image, **block_kwargs)
 
         cmap = None
         if self.c_dim > 0:
             if self.disc_c_noise > 0: c += torch.randn_like(c) * c.std(0) * self.disc_c_noise
             cmap = self.mapping(None, c)
-        x = self.b4(x, img, cmap)
-        if chamfer_loss is not None:
-            x += torch.mean(chamfer_loss[0], dim=1).view(x.shape)
+        x = self.b4(x, image, cmap)
+        x += self.chamfer3d(c, img, pc, neural_rendering_resolution)
+        
         return x
 
     def extra_repr(self):
