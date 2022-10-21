@@ -15,6 +15,8 @@ import torch
 import warnings
 import dnnlib
 
+from ipdb import set_trace as st
+
 #----------------------------------------------------------------------------
 # Cached construction of constant tensors. Avoids CPU=>GPU copy when the
 # same constant is used multiple times.
@@ -190,6 +192,7 @@ def check_ddp_consistency(module, ignore_regex=None):
             tensor = nan_to_num(tensor)
         other = tensor.clone()
         torch.distributed.broadcast(tensor=other, src=0)
+        
         assert (tensor == other).all(), fullname
 
 #----------------------------------------------------------------------------
