@@ -203,6 +203,7 @@ def parse_comma_separated_list(s):
 @click.option('--volume_res',    help='volume resolution.', metavar='INT',  type=click.IntRange(min=16), required=False, default=128) # default=128 after finishing pipeline
 @click.option('--decoder_dim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
 @click.option('--decoder_outdim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
+@click.option('--use_ray_directions', help='If true, use_ray_directions during rendering.', metavar='BOOL',  type=bool, required=False, default=True)
 
 def main(**kwargs):
     """Train a GAN using the techniques described in the paper
@@ -320,6 +321,7 @@ def main(**kwargs):
         'reg_type': opts.reg_type, # for experimenting with variations on density regularization
         'decoder_lr_mul': opts.decoder_lr_mul, # learning rate multiplier for decoder
         'sr_antialias': True,
+        'use_ray_directions': opts.use_ray_directions,
     }
 
     if opts.cfg == 'ffhq':
