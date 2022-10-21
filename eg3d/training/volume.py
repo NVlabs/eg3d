@@ -84,7 +84,6 @@ class VolumeGenerator(torch.nn.Module):
     def synthesis(self, ws, c, pc=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
         cam2world_matrix = c[:, :16].view(-1, 4, 4)
         intrinsics = c[:, 16:25].view(-1, 3, 3)
-        st()
 
         if neural_rendering_resolution is None:
             neural_rendering_resolution = self.neural_rendering_resolution
