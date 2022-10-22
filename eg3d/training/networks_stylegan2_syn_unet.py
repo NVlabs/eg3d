@@ -716,6 +716,20 @@ class PointNet(torch.nn.Module):
         # fea_dim = cfg.DATA_CONFIG.DATALOADER.DATA_DIM
         # out_pt_fea_dim = cfg.MODEL.VFE.OUT_CHANNEL
 
+        # self.PPmodel = nn.Sequential(
+        #     # nn.BatchNorm1d(fea_dim),
+        #     nn.Linear(fea_dim, 64),
+        #     nn.SyncBatchNorm(64),
+        #     nn.ReLU(),
+        #     nn.Linear(64, 128),
+        #     nn.SyncBatchNorm(128),
+        #     nn.ReLU(),
+        #     nn.Linear(128, 256),
+        #     nn.SyncBatchNorm(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, out_pt_fea_dim)
+        # )
+        
         self.PPmodel = nn.Sequential(
             # nn.BatchNorm1d(fea_dim),
             nn.Linear(fea_dim, 64),
