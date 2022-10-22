@@ -158,8 +158,11 @@ def training_loop(
         print('Constructing networks...')
     common_kwargs = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.num_channels)
     G = dnnlib.util.construct_class_by_name(**G_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
+    # G = torch.nn.SyncBatchNorm.convert_sync_batchnorm(G).to(device)
     G.register_buffer('dataset_label_std', torch.tensor(training_set.get_label_std()).to(device))
+    
     D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
+    # D = torch.nn.SyncBatchNorm.convert_sync_batchnorm(D).to(device)
     G_ema = copy.deepcopy(G).eval()
     # print('---------------------> G_kwargs', G_kwargs)
     # print('---------------------> common_kwargs', common_kwargs)
@@ -170,6 +173,7 @@ def training_loop(
         with dnnlib.util.open_url(resume_pkl) as f:
             resume_data = legacy.load_network_pkl(f)
         for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
+            module = torch.nn.SyncBatchNorm.convert_sync_batchnorm(module).to(device)
             misc.copy_params_and_buffers(resume_data[name], module, require_all=False)
 
     # Print network summary tables.
@@ -201,6 +205,7 @@ def training_loop(
         print(f'Distributing across {num_gpus} GPUs...')
     for module in [G, D, G_ema, augment_pipe]:
         if module is not None:
+            module = torch.nn.SyncBatchNorm.convert_sync_batchnorm(module).to(device)
             for param in misc.params_and_buffers(module):
                 if param.numel() > 0 and num_gpus > 1:
                     torch.distributed.broadcast(param, src=0)
@@ -436,7 +441,7 @@ def training_loop(
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
-        if (snapshot_data is not None) and (len(metrics) > 0) and batch_idx %10 ==0:
+        if (snapshot_data is not None) and (len(metrics) > 0) and batch_idx % 10 ==0:
             if rank == 0:
                 print(run_dir)
                 print('Evaluating metrics...')

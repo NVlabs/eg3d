@@ -1,8 +1,8 @@
 # Train with Shapenet finetune, using 1 GPUs.
 ##-------- common settings ---------------------
 CUDA_VISIBLE_DEVICES=0
-GPUS=1
-BATCH_SIZE=2
+GPUS=2
+BATCH_SIZE=4
 BASE_DIR=/home/xuyi/Repo/eg3d
 
 # ##-------- abo/shapenet with triplane -----------
