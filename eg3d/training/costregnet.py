@@ -259,6 +259,7 @@ class Synthesis3DUnet(nn.Module): # 256^3 -> 8^3; 128^3 -> 4^3
             in_channels, 
             out_dim=8, 
             use_noise=False,
+            noise_strength = 0.5,
             ws_channel=512,
             affine_act='relu', #### ???? FIXME: is this a good activation 
             norm_act=InPlaceABN):
@@ -266,7 +267,7 @@ class Synthesis3DUnet(nn.Module): # 256^3 -> 8^3; 128^3 -> 4^3
         super(Synthesis3DUnet, self).__init__()
 
         self.use_noise = use_noise
-        noise_strength = 0.5
+        # noise_strength = 0.5
         self.noise_strength = noise_strength
 
         self.conv0 = ConvBnReLU3D(in_channels, out_dim, norm_act=norm_act)

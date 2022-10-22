@@ -40,6 +40,7 @@ class VolumeGenerator(torch.nn.Module):
         pc_dim,                     # Conditioning poincloud (PC) dimensionality.
         volume_res,                 # Volume resolution.
         decoder_dim,
+        noise_strength,      
         ##########################################
         sr_num_fp16_res     = 0,
         mapping_kwargs      = {},   # Arguments for MappingNetwork.
@@ -62,7 +63,9 @@ class VolumeGenerator(torch.nn.Module):
         self.ray_sampler = RaySampler()
         ## ------ change backbone to 3d CONV Unet --------
         # self.backbone = StyleGAN2Backbone(z_dim, c_dim, w_dim, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
-        self.backbone = VolumeBackbone(z_dim, c_dim, w_dim, pc_dim=pc_dim, volume_res=volume_res, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
+        self.backbone = VolumeBackbone(z_dim, c_dim, w_dim, \
+            pc_dim=pc_dim, volume_res=volume_res, noise_strength=noise_strength,\
+            img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         ##
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
         # self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 32})

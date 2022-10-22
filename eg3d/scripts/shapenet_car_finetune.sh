@@ -36,4 +36,5 @@ DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_512_completed_white_small.zip
 # BATCH_SIZE=2
 python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
   --gpus=${GPUS} --batch=${BATCH_SIZE} --gamma=0.3 \
-  --backbone volume --decoder_dim 8
+  --backbone volume --decoder_dim 8 \
+  --noise_strength 0.1

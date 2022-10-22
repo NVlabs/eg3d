@@ -485,6 +485,7 @@ class SynthesisNetwork(torch.nn.Module):
     def __init__(self,
         w_dim,                      # Intermediate latent (W) dimensionality.
         volume_res,
+        noise_strength,
         img_resolution,             # Output image resolution.
         img_channels,               # Number of color channels.
         channel_base    = 32768,    # Overall multiplier for the number of channels.
@@ -534,7 +535,7 @@ class SynthesisNetwork(torch.nn.Module):
         unet_in_channels = 32
         # self.unet3d=CostRegNet_Deeper(unet_in_channels, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
         self.synthesis_unet3d=Synthesis3DUnet(unet_in_channels, 
-                                use_noise=True, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
+                                use_noise=True, noise_strength = noise_strength, norm_act= nn.BatchNorm3d).to(torch.device("cuda"))
 
     def forward(self, ws, pc, box_warp, **block_kwargs):
     # def forward(self, ws, **block_kwargs):
@@ -760,6 +761,7 @@ class Generator(torch.nn.Module):
         ####### newly added parameters ######
         pc_dim,                     # Conditioning poincloud (PC) dimensionality.
         volume_res,                 # Volume resolution.
+        noise_strength,             # Factor to multiply with noise in the 3D Unet block.
         ##########################################
         img_resolution,             # Output resolution.
         img_channels,               # Number of output color channels.
@@ -776,7 +778,7 @@ class Generator(torch.nn.Module):
         ##########################################
         self.img_resolution = img_resolution
         self.img_channels = img_channels
-        self.synthesis = SynthesisNetwork(w_dim=w_dim,volume_res=volume_res, img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
+        self.synthesis = SynthesisNetwork(w_dim=w_dim,volume_res=volume_res,noise_strength=noise_strength,img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
         self.num_ws = self.synthesis.num_ws
         self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
 

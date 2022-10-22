@@ -204,6 +204,7 @@ def parse_comma_separated_list(s):
 @click.option('--decoder_dim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
 @click.option('--decoder_outdim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
 @click.option('--use_ray_directions', help='If true, use_ray_directions during rendering.', metavar='BOOL',  type=bool, required=False, default=True)
+@click.option('--noise_strength', help='Control the magnitude of noises added to 3D volume during upsampling.', metavar='FLOAT', type=click.FloatRange(min=0, max=1), default=0.5, show_default=True)
 
 def main(**kwargs):
     """Train a GAN using the techniques described in the paper
@@ -285,6 +286,7 @@ def main(**kwargs):
         c.G_kwargs.pc_dim = [opts.num_points, opts.num_materials]
         c.G_kwargs.volume_res = opts.volume_res
         c.G_kwargs.decoder_dim = opts.decoder_dim
+        c.G_kwargs.noise_strength = opts.noise_strength
         c.D_kwargs.class_name = 'training.volume_discriminator.VolumeDualDiscriminator'
         # c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
         # c.G_kwargs.decoder_outdim = opts.decoder_outdim
