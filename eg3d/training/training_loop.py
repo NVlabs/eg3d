@@ -441,7 +441,7 @@ def training_loop(
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
-        if (snapshot_data is not None) and (len(metrics) > 0) and batch_idx %10 ==0:
+        if (snapshot_data is not None) and (len(metrics) > 0) and batch_idx % 10 ==0:
             if rank == 0:
                 print(run_dir)
                 print('Evaluating metrics...')

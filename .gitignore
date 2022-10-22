@@ -15,6 +15,7 @@ archive
 eval
 out
 __pycache__
+try-runs
 
 # evaluation:
 temp/

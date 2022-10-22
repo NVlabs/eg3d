@@ -19,6 +19,7 @@ from training.dual_discriminator import filtered_resizing
 
 from ipdb import set_trace as st
 from training.volume import VolumeGenerator
+from training.volume_discriminator import VolumeDualDiscriminator
 #----------------------------------------------------------------------------
 
 class Loss:
@@ -76,7 +77,7 @@ class StyleGAN2Loss(Loss):
             gen_output = self.G.synthesis(ws, c, neural_rendering_resolution=neural_rendering_resolution, update_emas=update_emas)
         return gen_output, ws
 
-    def run_D(self, img, c, blur_sigma=0, blur_sigma_raw=0, update_emas=False):
+    def run_D(self, img, c, pc, neural_rendering_resolution,blur_sigma=0, blur_sigma_raw=0,   update_emas=False):
         blur_size = np.floor(blur_sigma * 3)
         if blur_size > 0:
             with torch.autograd.profiler.record_function('blur'):
@@ -89,8 +90,10 @@ class StyleGAN2Loss(Loss):
                                                     dim=1))
             img['image'] = augmented_pair[:, :img['image'].shape[1]]
             img['image_raw'] = torch.nn.functional.interpolate(augmented_pair[:, img['image'].shape[1]:], size=img['image_raw'].shape[2:], mode='bilinear', antialias=True)
-
-        logits = self.D(img, c, update_emas=update_emas)
+        if isinstance(self.D, VolumeDualDiscriminator):
+            logits = self.D(img, c, pc, neural_rendering_resolution, update_emas=update_emas)
+        else:
+            logits = self.D(img, c, update_emas=update_emas)
         return logits
 
     def accumulate_gradients(self, phase, real_img, real_c, gen_z, gen_c, gen_pc, gain, cur_nimg):
@@ -126,7 +129,7 @@ class StyleGAN2Loss(Loss):
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, gen_pc, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution)
                 # TODO: ADD gen_pc condition to discriminator
-                gen_logits = self.run_D(gen_img, gen_c, blur_sigma=blur_sigma)
+                gen_logits = self.run_D(gen_img, gen_c,gen_pc, neural_rendering_resolution=neural_rendering_resolution,  blur_sigma=blur_sigma)
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits)
@@ -294,7 +297,7 @@ class StyleGAN2Loss(Loss):
         if phase in ['Dmain', 'Dboth']:
             with torch.autograd.profiler.record_function('Dgen_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, gen_pc, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution, update_emas=True)
-                gen_logits = self.run_D(gen_img, gen_c, blur_sigma=blur_sigma, update_emas=True)
+                gen_logits = self.run_D(gen_img, gen_c,gen_pc, neural_rendering_resolution=neural_rendering_resolution,  blur_sigma=blur_sigma, update_emas=True)
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Dgen = torch.nn.functional.softplus(gen_logits)
@@ -311,7 +314,8 @@ class StyleGAN2Loss(Loss):
                 real_img_tmp = {'image': real_img_tmp_image, 'image_raw': real_img_tmp_image_raw}
 
                 # TODO: ADD gen_pc to discriminator
-                real_logits = self.run_D(real_img_tmp, real_c, blur_sigma=blur_sigma)
+                real_logits = self.run_D(real_img_tmp, real_c,gen_pc,neural_rendering_resolution=neural_rendering_resolution,  blur_sigma=blur_sigma, update_emas=True)
+                
                 training_stats.report('Loss/scores/real', real_logits)
                 training_stats.report('Loss/signs/real', real_logits.sign())
 
