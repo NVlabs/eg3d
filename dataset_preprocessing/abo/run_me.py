@@ -24,7 +24,8 @@ if __name__ == '__main__':
         # url = 'https://drive.google.com/uc?id=1bThUNtIHx4xEQyffVBSf82ABDDh2HlFn'
         # output_dataset_name = 'abo_128_completed.zip'
         # output_dataset_name = 'abo_128_completed_white.zip'
-        output_dataset_name = 'abo_512_completed_white.zip'
+        # output_dataset_name = 'abo_512_completed_white.zip'
+        output_dataset_name = 'debug.zip'
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         # extracted_data_path = os.path.join(working_dir, os.path.splitext(download_name)[0])
