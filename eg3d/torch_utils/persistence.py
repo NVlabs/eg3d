@@ -16,7 +16,8 @@ usable even if the original code is no longer available, or if the current
 version of the code is not consistent with what was originally pickled."""
 
 import sys
-import pickle
+# import pickle
+import dill as pickle
 import io
 import inspect
 import copy

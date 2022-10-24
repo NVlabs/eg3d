@@ -26,7 +26,7 @@ from torch_utils.ops import fma
 
 from ipdb import set_trace as st
 import multiprocessing
-from torch_utils.utils_ds import grp_range_torch, parallel_FPS
+from torch_utils.utils_ds import grp_range_torch, parallel_FPS, get_embedder
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_scatter
@@ -486,6 +486,7 @@ class SynthesisNetwork(torch.nn.Module):
         w_dim,                      # Intermediate latent (W) dimensionality.
         volume_res,
         noise_strength,
+        # vfe_feature,
         img_resolution,             # Output image resolution.
         img_channels,               # Number of color channels.
         channel_base    = 32768,    # Overall multiplier for the number of channels.
@@ -518,7 +519,30 @@ class SynthesisNetwork(torch.nn.Module):
             setattr(self, f'b{res}', block)
         
         ###### hard-code attr for voxelize #######
-        self.vfe_model = PointNet(fea_dim=9, out_pt_fea_dim=32) # TODO: modify this hard-coded thing
+        vfe_feature = 'embedding'
+        self.vfe_feature = vfe_feature
+        if self.vfe_feature=='embedding':
+            # processed_cat_pt_fea = self.voxel_embed(cat_pt_fea)
+            # EMBEDDER:
+            embedder_kwargs = {
+                'multires': 5,
+                'i': 0, # i_embed
+                'input_dims': 9,
+                }
+            embed_fn, input_ch = get_embedder(
+                **embedder_kwargs
+                )
+           
+            # embed_fn, input_ch = get_embedder(
+            #     cfg.MODEL.EMBEDDER.multires, 
+            #     cfg.MODEL.EMBEDDER.i_embed, 
+            #     input_dims=cfg.MODEL.EMBEDDER.pts_dim)
+            # input_ch: 33
+            self.vfe_model = embed_fn
+
+        elif self.vfe_feature=='pointnet':
+            self.vfe_model = PointNet(fea_dim=9, out_pt_fea_dim=32) # TODO: modify this hard-coded thing
+        
         self.pt_selection = 'random'
         self.max_pt = 256
         self.pt_pooling = 'max'
@@ -617,7 +641,7 @@ class SynthesisNetwork(torch.nn.Module):
         ],device=batch_pcl.device)[None, None,...].repeat(B,V,1,1)
         
         pointnet_input='local_xyz' # hard-code
-        feature ='pointnet'
+        # feature ='pointnet'
 
         ######## function logic ######### 
         
@@ -689,10 +713,10 @@ class SynthesisNetwork(torch.nn.Module):
         # construct density volume from unqcnt
         batch_densities_volumes = unq_cnt[...,None] # add one more dim
 
-        if feature=='embedding':
-            processed_cat_pt_fea = self.voxel_embed(cat_pt_fea)
-        elif feature=='pointnet':
-            processed_cat_pt_fea = self.vfe_model(cat_pt_fea) # global pointnet
+        # if feature=='embedding':
+        #     processed_cat_pt_fea = self.voxel_embed(cat_pt_fea)
+        # elif feature=='pointnet':
+        processed_cat_pt_fea = self.vfe_model(cat_pt_fea) # global pointnet
             # st()
 
         if self.pt_pooling == 'max':
