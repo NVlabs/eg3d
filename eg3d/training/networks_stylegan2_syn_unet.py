@@ -539,9 +539,15 @@ class SynthesisNetwork(torch.nn.Module):
             #     input_dims=cfg.MODEL.EMBEDDER.pts_dim)
             # input_ch: 33
             self.vfe_model = embed_fn
+            self.fea_compre = True
+            self.fea_compression = nn.Sequential(
+                            nn.Linear(input_ch, 32),
+                            nn.ReLU()
+                        ).cuda()
 
         elif self.vfe_feature=='pointnet':
             self.vfe_model = PointNet(fea_dim=9, out_pt_fea_dim=32) # TODO: modify this hard-coded thing
+            self.fea_compre = False
         
         self.pt_selection = 'random'
         self.max_pt = 256
@@ -549,11 +555,7 @@ class SynthesisNetwork(torch.nn.Module):
         if self.pt_pooling == 'max':
             self.pool_dim = 64
         self.pos_enc_dim = 0
-        # self.fea_compre = 32
-        # self.fea_compression = nn.Sequential(
-        #                 nn.Linear(self.pool_dim+self.pos_enc_dim, self.fea_compre),
-        #                 nn.ReLU()
-        #             ).cuda()
+       
         ######### for unet3d ############
         self.grid_size=[volume_res]*3
         unet_in_channels = 32
@@ -723,10 +725,11 @@ class SynthesisNetwork(torch.nn.Module):
             pooled_data = torch_scatter.scatter_max(processed_cat_pt_fea, unq_inv, dim=0)[0] # choose the max feature for each grid
         else: raise NotImplementedError
 
-        # if self.fea_compre:
-        #     processed_pooled_data = self.fea_compression(pooled_data)
-        # else:
-        processed_pooled_data = pooled_data
+        if self.fea_compre:
+            processed_pooled_data = self.fea_compression(pooled_data)
+        else:
+            st()
+            processed_pooled_data = pooled_data
 
         return unq, processed_pooled_data, batch_densities_volumes, voxel_size
 
