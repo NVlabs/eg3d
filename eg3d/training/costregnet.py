@@ -354,7 +354,7 @@ class Synthesis3DUnet(nn.Module): # 256^3 -> 8^3; 128^3 -> 4^3
 
         conv61 = self.conv61(self.conv51(conv6))
         conv62 = self.conv62(self.conv52(conv61))
-        print("CostRegNetDeeper bottleneck:", conv62.shape) # 256^3 -> 8^3; 128^3 -> 4^3
+        # print("CostRegNetDeeper bottleneck:", conv62.shape) # 256^3 -> 8^3; 128^3 -> 4^3
 
         ### below is upconv process: add noises and latent
         w_idx=0
