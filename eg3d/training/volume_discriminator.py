@@ -104,40 +104,6 @@ def filtered_resizing(image_orig_tensor, size, f, filter_mode='antialiased'):
     return ada_filtered_64
 
 
-from torch_utils.chamfer3D.dist_chamfer_3D import chamfer_3DDist
-#----------------------------------------------------------------------------
-@persistence.persistent_class
-class ChamferDistanceBlock(torch.nn.Module):
-    def __init__(self, direction=0):
-        super().__init__()
-        self.direction = direction
-        self.ray_sampler = RaySampler()
-        self.chamfer3d = chamfer_3DDist()
-
-    def forward(self, c, img, pc, neural_rendering_resolution):
-        return 
-        dtype = torch.float32
-        memory_format = torch.contiguous_format
-        _shape = (img['image'].shape[0],1)
-        _device = img['image'].device
-        if pc is None or 'image_depth' not in img:
-            return torch.zeros(_shape).to(device=_device, dtype=dtype, memory_format=memory_format)
-        image_depth = img['image_depth'].view(img['image'].shape[0], -1, 1)
-        cam2world_matrix = c[:, :16].view(-1, 4, 4)
-        intrinsics = c[:, 16:25].view(-1, 3, 3)
-        
-        if neural_rendering_resolution is None:
-            neural_rendering_resolution = self.neural_rendering_resolution
-        else:
-            self.neural_rendering_resolution = neural_rendering_resolution
-
-        # Create a batch of rays for volume rendering
-        ray_origins, ray_directions = self.ray_sampler(cam2world_matrix, intrinsics, neural_rendering_resolution)
-        pred_pos = image_depth * ray_directions + ray_origins
-        gt_pos = pc[...,:3]
-        chamfer_loss = self.chamfer3d(pred_pos, gt_pos)[self.direction]
-        chamfer_loss = torch.mean(chamfer_loss, dim=1).to(device=_device, dtype=dtype, memory_format=memory_format)
-        return chamfer_loss.view(_shape)
 
 @persistence.persistent_class
 class VolumeDualDiscriminator(torch.nn.Module):
@@ -189,7 +155,6 @@ class VolumeDualDiscriminator(torch.nn.Module):
         self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
         self.disc_c_noise = disc_c_noise
-        # self.chamfer3d = ChamferDistanceBlock()
 
     def forward(self, img, c, pc=None, neural_rendering_resolution=None, update_emas=False, **block_kwargs):
         image_raw = filtered_resizing(img['image_raw'], size=img['image'].shape[-1], f=self.resample_filter)
@@ -212,7 +177,6 @@ class VolumeDualDiscriminator(torch.nn.Module):
             cmap = self.mapping(None, c)
         x = self.b4(x, image, cmap)
         # FIXME: Oct25 remove chamfer from discriminator
-        # x += self.chamfer3d(c, img, pc, neural_rendering_resolution)
         
         return x
 
