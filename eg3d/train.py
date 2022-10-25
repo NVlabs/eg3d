@@ -208,6 +208,7 @@ def parse_comma_separated_list(s):
 
 # specially for VolumeGenerator
 # chamfer
+@click.option('--use_chamfer',    help='Use chamfer loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
 @click.option('--use_perception',    help='Use perception loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
 @click.option('--perception_reg',    help='perception reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=1, required=False, show_default=True)
 @click.option('--use_l2',      help='Use L2 loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
@@ -266,6 +267,7 @@ def main(**kwargs):
     c.D_kwargs.block_kwargs.freeze_layers = opts.freezed
     c.D_kwargs.epilogue_kwargs.mbstd_group_size = opts.mbstd_group
     c.loss_kwargs.r1_gamma = opts.gamma
+    c.loss_kwargs.use_chamfer = opts.use_chamfer
     c.G_opt_kwargs.lr = (0.002 if opts.cfg == 'stylegan2' else 0.0025) if opts.glr is None else opts.glr
     c.D_opt_kwargs.lr = opts.dlr
     c.metrics = opts.metrics
@@ -287,6 +289,7 @@ def main(**kwargs):
 
     # Base configuration.
     c.ema_kimg = c.batch_size * 10 / 32
+
     ## conditional generator with pointcloud input
     if opts.backbone == 'volume':
         c.G_kwargs.class_name = 'training.volume.VolumeGenerator'
@@ -295,14 +298,13 @@ def main(**kwargs):
         c.G_kwargs.volume_res = opts.volume_res
         c.G_kwargs.decoder_dim = opts.decoder_dim
         c.G_kwargs.noise_strength = opts.noise_strength
-        c.D_kwargs.class_name = 'training.volume_discriminator.VolumeDualDiscriminator'
+        # c.D_kwargs.class_name = 'training.volume_discriminator.VolumeDualDiscriminator'
         # c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
         # c.G_kwargs.decoder_outdim = opts.decoder_outdim
-
-
     else:
         c.G_kwargs.class_name = 'training.triplane.TriPlaneGenerator'
-        c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
+        
+    c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
     c.G_kwargs.fused_modconv_default = 'inference_only' # Speed up training by using regular convolutions instead of grouped convolutions.
     c.loss_kwargs.filter_mode = 'antialiased' # Filter mode for raw images ['antialiased', 'none', float [0-1]]
     c.D_kwargs.disc_c_noise = opts.disc_c_noise # Regularization for discriminator pose conditioning
