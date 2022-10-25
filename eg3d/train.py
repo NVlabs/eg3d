@@ -33,7 +33,7 @@ import numpy as np
 #----------------------------------------------------------------------------
 
 def subprocess_fn(rank, c, temp_dir):
-    dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
+    # dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     # Init torch.distributed.
     if c.num_gpus > 1:
@@ -57,7 +57,7 @@ def subprocess_fn(rank, c, temp_dir):
 #----------------------------------------------------------------------------
 
 def launch_training(c, desc, outdir, dry_run):
-    dnnlib.util.Logger(should_flush=True)
+    # dnnlib.util.Logger(should_flush=True)
 
     # Pick output directory.
     prev_run_dirs = []
@@ -205,6 +205,13 @@ def parse_comma_separated_list(s):
 @click.option('--decoder_outdim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
 @click.option('--use_ray_directions', help='If true, use_ray_directions during rendering.', metavar='BOOL',  type=bool, required=False, default=True)
 @click.option('--noise_strength', help='Control the magnitude of noises added to 3D volume during upsampling.', metavar='FLOAT', type=click.FloatRange(min=0, max=1), default=0.5, show_default=True)
+
+# specially for VolumeGenerator
+# chamfer
+@click.option('--use_perception', help='Use perception loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
+@click.option('--perception_reg',    help='lazy perception reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=100, required=False, show_default=True)
+
+
 
 def main(**kwargs):
     """Train a GAN using the techniques described in the paper
@@ -395,6 +402,9 @@ def main(**kwargs):
     c.G_kwargs.sr_kwargs = dnnlib.EasyDict(channel_base=opts.cbase, channel_max=opts.cmax, fused_modconv_default='inference_only')
 
     c.loss_kwargs.style_mixing_prob = opts.style_mixing_prob
+    c.loss_kwargs.use_perception  = opts.use_perception
+    c.loss_kwargs.perception_reg = opts.perception_reg
+
 
     # Augmentation.
     if opts.aug != 'noaug':

@@ -115,6 +115,7 @@ class ChamferDistanceBlock(torch.nn.Module):
         self.chamfer3d = chamfer_3DDist()
 
     def forward(self, c, img, pc, neural_rendering_resolution):
+        return 
         dtype = torch.float32
         memory_format = torch.contiguous_format
         _shape = (img['image'].shape[0],1)
@@ -188,7 +189,7 @@ class VolumeDualDiscriminator(torch.nn.Module):
         self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
         self.disc_c_noise = disc_c_noise
-        self.chamfer3d = ChamferDistanceBlock()
+        # self.chamfer3d = ChamferDistanceBlock()
 
     def forward(self, img, c, pc=None, neural_rendering_resolution=None, update_emas=False, **block_kwargs):
         image_raw = filtered_resizing(img['image_raw'], size=img['image'].shape[-1], f=self.resample_filter)
@@ -210,7 +211,8 @@ class VolumeDualDiscriminator(torch.nn.Module):
             if self.disc_c_noise > 0: c += torch.randn_like(c) * c.std(0) * self.disc_c_noise
             cmap = self.mapping(None, c)
         x = self.b4(x, image, cmap)
-        x += self.chamfer3d(c, img, pc, neural_rendering_resolution)
+        # FIXME: Oct25 remove chamfer from discriminator
+        # x += self.chamfer3d(c, img, pc, neural_rendering_resolution)
         
         return x
 

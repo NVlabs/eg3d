@@ -20,6 +20,9 @@ from training.dual_discriminator import filtered_resizing
 from ipdb import set_trace as st
 from training.volume import VolumeGenerator
 from training.volume_discriminator import VolumeDualDiscriminator
+import clip
+import torchvision.transforms as T
+from PIL import Image
 #----------------------------------------------------------------------------
 
 class Loss:
@@ -29,7 +32,8 @@ class Loss:
 #----------------------------------------------------------------------------
 
 class StyleGAN2Loss(Loss):
-    def __init__(self, device, G, D, augment_pipe=None, r1_gamma=10, style_mixing_prob=0, pl_weight=0, pl_batch_shrink=2, pl_decay=0.01, pl_no_weight_grad=False, blur_init_sigma=0, blur_fade_kimg=0, r1_gamma_init=0, r1_gamma_fade_kimg=0, neural_rendering_resolution_initial=64, neural_rendering_resolution_final=None, neural_rendering_resolution_fade_kimg=0, gpc_reg_fade_kimg=1000, gpc_reg_prob=None, dual_discrimination=False, filter_mode='antialiased'):
+    def __init__(self, device, G, D, augment_pipe=None, r1_gamma=10, style_mixing_prob=0, pl_weight=0, pl_batch_shrink=2, pl_decay=0.01, pl_no_weight_grad=False, blur_init_sigma=0, blur_fade_kimg=0, r1_gamma_init=0, r1_gamma_fade_kimg=0, neural_rendering_resolution_initial=64, neural_rendering_resolution_final=None, neural_rendering_resolution_fade_kimg=0, gpc_reg_fade_kimg=1000, gpc_reg_prob=None, dual_discrimination=False, filter_mode='antialiased',
+                    use_perception=False, perception_reg=100):
         super().__init__()
         self.device             = device
         self.G                  = G
@@ -56,6 +60,8 @@ class StyleGAN2Loss(Loss):
         self.resample_filter = upfirdn2d.setup_filter([1,3,3,1], device=device)
         self.blur_raw_target = True
         assert self.gpc_reg_prob is None or (0 <= self.gpc_reg_prob <= 1)
+        self.use_perception  = use_perception
+        self.perception_reg = perception_reg
 
     def run_G(self, z, c, pc, swapping_prob, neural_rendering_resolution, update_emas=False):
         if swapping_prob is not None:
@@ -95,15 +101,55 @@ class StyleGAN2Loss(Loss):
         else:
             logits = self.D(img, c, update_emas=update_emas)
         return logits
+    
+    def cal_perception_loss(self, gen_img, real_img):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model, preprocess = clip.load("ViT-B/32", device=device) # maybe too large
+        self.perception_reg = 1 # ViT will give larger loss
+        # model, preprocess = clip.load("RN50", device=device)
+        
+        # convert to PIL 
+        transform = T.ToPILImage()
+
+        gen_img_PIL=[]
+        # currently all images are normalized within -1~1
+        for gi in gen_img['image']:
+            # gi = (gi+1.)/2 # no difference
+            gen_img_PIL.append(preprocess(transform(gi)))
+        gen_img_processed = torch.tensor(np.stack(gen_img_PIL)).to(device)
+
+        real_img_PIL=[]
+        for ri in real_img['image']:
+            # ri = (ri+1.)/2 # no difference
+            real_img_PIL.append(preprocess(transform(ri)))
+        real_img_processed = torch.tensor(np.stack(real_img_PIL)).to(device)
+
+        # image = preprocess(Image.open("CLIP.png")).unsqueeze(0).to(device)
+        # text = clip.tokenize(["a diagram", "a dog", "a cat"]).to(device)
+    
+
+        with torch.no_grad():
+
+            gen_image_features = model.encode_image(gen_img_processed).float()
+            real_image_features = model.encode_image(real_img_processed).float()
+           
+            mse = torch.nn.MSELoss(reduction='none')
+            loss = mse(gen_image_features, real_image_features)
+                        
+        return loss
 
     def accumulate_gradients(self, phase, real_img, real_c, gen_z, gen_c, gen_pc, gain, cur_nimg):
         assert phase in ['Gmain', 'Greg', 'Gboth', 'Dmain', 'Dreg', 'Dboth']
+        ############# FIXME Oct 25: uncomment below to still enable Greg phase ##################
         if self.G.rendering_kwargs.get('density_reg', 0) == 0:
             phase = {'Greg': 'none', 'Gboth': 'Gmain'}.get(phase, phase)
+        ###############################
         if self.r1_gamma == 0:
             phase = {'Dreg': 'none', 'Dboth': 'Dmain'}.get(phase, phase)
         blur_sigma = max(1 - cur_nimg / (self.blur_fade_kimg * 1e3), 0) * self.blur_init_sigma if self.blur_fade_kimg > 0 else 0
         r1_gamma = self.r1_gamma
+
+        print(f'############# current phase: {phase} ############')
 
         alpha = min(cur_nimg / (self.gpc_reg_fade_kimg * 1e3), 1) if self.gpc_reg_fade_kimg > 0 else 1
         swapping_prob = (1 - alpha) * 1 + alpha * self.gpc_reg_prob if self.gpc_reg_prob is not None else None
@@ -128,17 +174,33 @@ class StyleGAN2Loss(Loss):
         if phase in ['Gmain', 'Gboth']:
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, gen_pc, swapping_prob=swapping_prob, neural_rendering_resolution=neural_rendering_resolution)
-                # TODO: ADD gen_pc condition to discriminator
+                
                 gen_logits = self.run_D(gen_img, gen_c,gen_pc, neural_rendering_resolution=neural_rendering_resolution,  blur_sigma=blur_sigma)
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits)
                 training_stats.report('Loss/G/loss', loss_Gmain)
+
+                # TODO: chamfer loss 
+
+                # TODO: perceptual loss
+                if self.use_perception:
+                    perception_loss = self.cal_perception_loss(gen_img=gen_img, real_img=real_img)
+                    perception_loss = torch.mean(perception_loss, 1, True) * self.perception_reg
+                    loss_Gmain += perception_loss
+                
+                    training_stats.report('Loss/G/perceptual', perception_loss)
+
+
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.mean().mul(gain).backward()
 
+        
+        
+
         # Density Regularization
         if phase in ['Greg', 'Gboth'] and self.G.rendering_kwargs.get('density_reg', 0) > 0 and self.G.rendering_kwargs['reg_type'] == 'l1':
+
         
             if swapping_prob is not None: # always None
                 # c_swapped = torch.roll(gen_c.clone(), 1, 0)

@@ -519,7 +519,8 @@ class SynthesisNetwork(torch.nn.Module):
             setattr(self, f'b{res}', block)
         
         ###### hard-code attr for voxelize #######
-        vfe_feature = 'embedding'
+        # vfe_feature = 'embedding'
+        vfe_feature = 'pointnet'
         self.vfe_feature = vfe_feature
         if self.vfe_feature=='embedding':
             # processed_cat_pt_fea = self.voxel_embed(cat_pt_fea)
@@ -728,7 +729,6 @@ class SynthesisNetwork(torch.nn.Module):
         if self.fea_compre:
             processed_pooled_data = self.fea_compression(pooled_data)
         else:
-            st()
             processed_pooled_data = pooled_data
 
         return unq, processed_pooled_data, batch_densities_volumes, voxel_size
@@ -805,7 +805,7 @@ class Generator(torch.nn.Module):
         ##########################################
         self.img_resolution = img_resolution
         self.img_channels = img_channels
-        self.synthesis = SynthesisNetwork(w_dim=w_dim,volume_res=volume_res,noise_strength=noise_strength,img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
+        self.synthesis = SynthesisNetwork(w_dim=w_dim,volume_res=volume_res, img_resolution=img_resolution, noise_strength=noise_strength, img_channels=img_channels, **synthesis_kwargs)
         self.num_ws = self.synthesis.num_ws
         self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
 

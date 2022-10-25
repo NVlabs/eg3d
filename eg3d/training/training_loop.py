@@ -234,6 +234,7 @@ def training_loop(
         if rank == 0:
             phase.start_event = torch.cuda.Event(enable_timing=True)
             phase.end_event = torch.cuda.Event(enable_timing=True)
+    print("Training phases:\n", [p.name for p in phases])
 
     # Export sample images.
     grid_size = None
