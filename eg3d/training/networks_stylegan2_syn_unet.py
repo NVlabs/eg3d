@@ -523,6 +523,7 @@ class SynthesisNetwork(torch.nn.Module):
         vfe_feature = 'pointnet'
         self.vfe_feature = vfe_feature
         if self.vfe_feature=='embedding':
+            assert False
             # processed_cat_pt_fea = self.voxel_embed(cat_pt_fea)
             # EMBEDDER:
             embedder_kwargs = {
