@@ -218,13 +218,17 @@ def training_loop(
     phases = []
     for name, module, opt_kwargs, reg_interval in [('G', G, G_opt_kwargs, G_reg_interval), ('D', D, D_opt_kwargs, D_reg_interval)]:
         if reg_interval is None:
-            opt = dnnlib.util.construct_class_by_name(params=module.parameters(), **opt_kwargs) # subclass of torch.optim.Optimizer
+            # print([name for name, p in module.named_parameters() if p.requires_grad]) # : empty
+            # opt = dnnlib.util.construct_class_by_name(params=[p for p in module.parameters() if p.requires_grad], **opt_kwargs) # subclass of torch.optim.Optimizer
+            opt = dnnlib.util.construct_class_by_name(params= module.parameters(), **opt_kwargs) # subclass of torch.optim.Optimizer
             phases += [dnnlib.EasyDict(name=name+'both', module=module, opt=opt, interval=1)]
         else: # Lazy regularization.
             mb_ratio = reg_interval / (reg_interval + 1)
             opt_kwargs = dnnlib.EasyDict(opt_kwargs)
             opt_kwargs.lr = opt_kwargs.lr * mb_ratio
             opt_kwargs.betas = [beta ** mb_ratio for beta in opt_kwargs.betas]
+            # print([name for name, p in module.named_parameters() if p.requires_grad]) # : empty
+            # opt = dnnlib.util.construct_class_by_name(params=[p for p in module.parameters() if p.requires_grad], **opt_kwargs) # subclass of torch.optim.Optimizer
             opt = dnnlib.util.construct_class_by_name(module.parameters(), **opt_kwargs) # subclass of torch.optim.Optimizer
             phases += [dnnlib.EasyDict(name=name+'main', module=module, opt=opt, interval=1)]
             phases += [dnnlib.EasyDict(name=name+'reg', module=module, opt=opt, interval=reg_interval)]
@@ -306,7 +310,10 @@ def training_loop(
             # Accumulate gradients.
             phase.opt.zero_grad(set_to_none=True)
             phase.module.requires_grad_(True)
-            # st()
+
+            # if rank == 0:
+            #     print('############# current phase:', phase, '############')
+            
             for real_img, real_c, gen_z, gen_c, gen_pc in zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_gen_pc):
                 loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, gen_z=gen_z, gen_c=gen_c, gen_pc=gen_pc, gain=phase.interval, cur_nimg=cur_nimg)
             phase.module.requires_grad_(False)

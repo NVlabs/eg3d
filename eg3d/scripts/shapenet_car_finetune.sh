@@ -32,9 +32,11 @@ BASE_DIR=/home/xuyi/Repo/eg3d
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_128_completed_white.zip
 # DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_512_completed_white.zip
 DATA=${BASE_DIR}/dataset_preprocessing/abo/abo_512_completed_white_small.zip
-GPUS=1
-BATCH_SIZE=2
+GPUS=2
+BATCH_SIZE=4
 python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
   --gpus=${GPUS} --batch=${BATCH_SIZE} --gamma=0.3 \
   --backbone volume --decoder_dim 8 \
-  --noise_strength 0.1 --use_perception True
+  --noise_strength 0.1 --snap 1 \
+  --use_perception True --perception_reg 10 \
+  --use_l2 True --l2_reg 10
