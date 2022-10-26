@@ -136,8 +136,8 @@ __global__ void NmDistanceKernel(int b,int n,const float * xyz,int m,const float
 int chamfer_cuda_forward(at::Tensor xyz1, at::Tensor xyz2, at::Tensor dist1, at::Tensor dist2, at::Tensor idx1, at::Tensor idx2){
 
 	const auto batch_size = xyz1.size(0);
-	const auto n = xyz1.size(1); //num_points point cloud A
-	const auto m = xyz2.size(1); //num_points point cloud B
+	const auto n = dist1.size(1); //num_points point cloud A
+	const auto m = dist2.size(1); //num_points point cloud B
 
 	NmDistanceKernel<<<dim3(32,16,1),512>>>(batch_size, n, xyz1.data<float>(), m, xyz2.data<float>(), dist1.data<float>(), idx1.data<int>());
 	NmDistanceKernel<<<dim3(32,16,1),512>>>(batch_size, m, xyz2.data<float>(), n, xyz1.data<float>(), dist2.data<float>(), idx2.data<int>());

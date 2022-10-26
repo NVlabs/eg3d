@@ -198,8 +198,11 @@ class StyleGAN2Loss(Loss):
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits)
                 training_stats.report('Loss/G/loss', loss_Gmain)
 
+                # chamfer loss
                 if self.use_chamfer:
-                    loss_Gmain += self.chamfer_loss(gen_c, gen_img, gen_pc, neural_rendering_resolution)
+                    chamfer_loss = self.chamfer_loss(gen_c, gen_img, gen_pc, neural_rendering_resolution)
+                    loss_Gmain += chamfer_loss
+                    training_stats.report('Loss/G/chamfer_loss', chamfer_loss)
 
                 # perceptual loss
                 if self.use_perception:
