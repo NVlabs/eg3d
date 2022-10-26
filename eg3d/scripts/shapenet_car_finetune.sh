@@ -38,5 +38,6 @@ python train.py --outdir=${BASE_DIR}/try-runs --cfg=abo_dataset --data=${DATA} \
   --gpus=${GPUS} --batch=${BATCH_SIZE} --gamma=0.3 \
   --backbone volume --decoder_dim 8 \
   --noise_strength 0.1 --snap 1 \
-  --use_perception True --perception_reg 10 \
-  --use_l2 True --l2_reg 10
+  --use_perception True --perception_reg 1 \
+  --use_l2 True --l2_reg 1 \
+  --use_chamfer True

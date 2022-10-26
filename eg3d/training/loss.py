@@ -205,7 +205,9 @@ class StyleGAN2Loss(Loss):
                 # chamfer loss
                 if self.use_chamfer:
                     chamfer_loss = self.chamfer_loss(gen_c, gen_img, gen_pc, neural_rendering_resolution)
-                    loss_Gmain += chamfer_loss * self.chamfer_reg
+                    chamfer_loss *= self.chamfer_reg
+                    loss_Gmain += chamfer_loss
+                    print(f"---------loss_chamfer\t(x{self.chamfer_reg}): {(chamfer_loss).sum().item()}-------------")
                     training_stats.report('Loss/G/chamfer_loss', chamfer_loss)
 
                 # perceptual loss
