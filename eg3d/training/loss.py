@@ -34,7 +34,7 @@ class Loss:
 
 class StyleGAN2Loss(Loss):
     def __init__(self, device, G, D, augment_pipe=None, r1_gamma=10, style_mixing_prob=0, pl_weight=0, pl_batch_shrink=2, pl_decay=0.01, pl_no_weight_grad=False, blur_init_sigma=0, blur_fade_kimg=0, r1_gamma_init=0, r1_gamma_fade_kimg=0, neural_rendering_resolution_initial=64, neural_rendering_resolution_final=None, neural_rendering_resolution_fade_kimg=0, gpc_reg_fade_kimg=1000, gpc_reg_prob=None, dual_discrimination=False, filter_mode='antialiased',
-                    use_perception=False, perception_reg=1, use_l2=False, use_chamfer=False, l2_reg=1):
+                    use_perception=False, perception_reg=1, use_l2=False, l2_reg=1, use_chamfer=False, chamfer_reg=1):
         super().__init__()
         self.device             = device
         self.G                  = G
@@ -60,7 +60,7 @@ class StyleGAN2Loss(Loss):
         self.filter_mode = filter_mode
         self.resample_filter = upfirdn2d.setup_filter([1,3,3,1], device=device)
         self.blur_raw_target = True
-        self.chamfer_loss = ChamferLoss()
+        
         assert self.gpc_reg_prob is None or (0 <= self.gpc_reg_prob <= 1)
         self.use_perception  = use_perception
         self.perception_reg = perception_reg
@@ -74,7 +74,11 @@ class StyleGAN2Loss(Loss):
                 
         self.use_l2 = use_l2
         self.l2_reg = l2_reg
+
         self.use_chamfer = use_chamfer
+        if self.use_chamfer:
+            self.chamfer_reg = chamfer_reg
+            self.chamfer_loss = ChamferLoss()
 
 
     def run_G(self, z, c, pc, swapping_prob, neural_rendering_resolution, update_emas=False):
@@ -201,7 +205,7 @@ class StyleGAN2Loss(Loss):
                 # chamfer loss
                 if self.use_chamfer:
                     chamfer_loss = self.chamfer_loss(gen_c, gen_img, gen_pc, neural_rendering_resolution)
-                    loss_Gmain += chamfer_loss
+                    loss_Gmain += chamfer_loss * self.chamfer_reg
                     training_stats.report('Loss/G/chamfer_loss', chamfer_loss)
 
                 # perceptual loss

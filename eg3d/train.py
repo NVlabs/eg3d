@@ -209,6 +209,7 @@ def parse_comma_separated_list(s):
 # specially for VolumeGenerator
 # chamfer
 @click.option('--use_chamfer',    help='Use chamfer loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
+@click.option('--chamfer_reg',    help='chamfer reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=1, required=False, show_default=True)
 @click.option('--use_perception',    help='Use perception loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
 @click.option('--perception_reg',    help='perception reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=1, required=False, show_default=True)
 @click.option('--use_l2',      help='Use L2 loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
@@ -268,6 +269,7 @@ def main(**kwargs):
     c.D_kwargs.epilogue_kwargs.mbstd_group_size = opts.mbstd_group
     c.loss_kwargs.r1_gamma = opts.gamma
     c.loss_kwargs.use_chamfer = opts.use_chamfer
+    c.loss_kwargs.chamfer_reg = opts.chamfer_reg
     c.G_opt_kwargs.lr = (0.002 if opts.cfg == 'stylegan2' else 0.0025) if opts.glr is None else opts.glr
     c.D_opt_kwargs.lr = opts.dlr
     c.metrics = opts.metrics
