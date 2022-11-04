@@ -34,7 +34,7 @@ from training.triplane import TriPlaneGenerator
 def parse_range(s: Union[str, List]) -> List[int]:
     '''Parse a comma separated list of numbers or ranges and return a list of ints.
 
-    Example: '1,2,5-10' returns [1, 2, 5, 6, 7]
+    Example: '1,2,5-10' returns [1, 2, 5, 6, 7, 8, 9, 10]
     '''
     if isinstance(s, list): return s
     ranges = []
