@@ -10,7 +10,6 @@
 
 import argparse
 import os
-import json
 from preprocess import align_img
 from PIL import Image
 import numpy as np
@@ -59,6 +58,3 @@ if __name__ == '__main__':
         im_cropped = im_cropped.resize((output_size, output_size), resample=Image.LANCZOS)
         out_path = os.path.join(out_dir, img_file.split(".")[0] + ".png")
         im_cropped.save(out_path)
-
-
-        

@@ -20,6 +20,12 @@ from PIL import Image, ImageOps
 import os
 from tqdm import tqdm
 import argparse
+import torch
+import sys
+sys.path.append('../../eg3d')
+from camera_utils import create_cam2world_matrix
+
+COMPRESS_LEVEL=0
     
 def fix_intrinsics(intrinsics):
     intrinsics = np.array(intrinsics).copy()
@@ -35,6 +41,7 @@ def fix_intrinsics(intrinsics):
     assert intrinsics[2,1] == 0
     return intrinsics
 
+# For our recropped images, with correction
 def fix_pose(pose):
     COR = np.array([0, 0, 0.175])
     pose = np.array(pose).copy()
@@ -43,12 +50,22 @@ def fix_pose(pose):
     pose[:3, 3] = direction * 2.7 + COR
     return pose
 
+# Used in original submission
 def fix_pose_orig(pose):
     pose = np.array(pose).copy()
     location = pose[:3, 3]
     radius = np.linalg.norm(location)
     pose[:3, 3] = pose[:3, 3]/radius * 2.7
     return pose
+
+# Used for original crop images
+def fix_pose_simplify(pose):
+    cam_location = torch.tensor(pose).clone()[:3, 3]
+    normalized_cam_location = torch.nn.functional.normalize(cam_location - torch.tensor([0, 0, 0.175]), dim=0)
+    camera_view_dir = - normalized_cam_location
+    camera_pos = 2.7 * normalized_cam_location + np.array([0, 0, 0.175])
+    simple_pose_matrix = create_cam2world_matrix(camera_view_dir.unsqueeze(0), camera_pos.unsqueeze(0))[0]
+    return simple_pose_matrix.numpy()
 
 def flip_yaw(pose_matrix):
     flipped = pose_matrix.copy()
@@ -85,6 +102,8 @@ if __name__ == '__main__':
             pose = fix_pose(pose)
         elif args.mode == 'orig':
             pose = fix_pose_orig(pose)
+        elif args.mode == 'simplify':
+            pose = fix_pose_simplify(pose)
         else:
             assert False, "invalid mode"
         intrinsics = fix_intrinsics(intrinsics)
