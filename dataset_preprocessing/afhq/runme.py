@@ -19,7 +19,7 @@ import gdown
 
 parser = argparse.ArgumentParser()
 parser.add_argument('inzip', type=str) # the AFHQ zip downloaded from starganV2 (https://github.com/clovaai/stargan-v2)
-parser.add_argument('outzip', type=str, required=False, default='processed_afhq.zip') # this is the output path to write the new zip
+parser.add_argument('--outzip', type=str, required=False, default='processed_afhq.zip') # this is the output path to write the new zip
 args = parser.parse_args()
 
 
