@@ -10,6 +10,9 @@
 
 """Tool for creating ZIP/PNG based datasets."""
 
+from array import array
+import csv
+from email.policy import default
 import functools
 import gzip
 import io
@@ -19,6 +22,7 @@ import pickle
 import re
 import sys
 import tarfile
+from xmlrpc.client import boolean
 import zipfile
 from pathlib import Path
 from typing import Callable, Optional, Tuple, Union
@@ -27,6 +31,10 @@ import click
 import numpy as np
 import PIL.Image
 from tqdm import tqdm
+
+from ipdb import set_trace as st
+import pandas as pd
+import point_cloud_utils as pcu
 
 #----------------------------------------------------------------------------
 
@@ -69,6 +77,11 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
 
 def open_image_folder(source_dir, *, max_images: Optional[int]):
     input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
+    
+    # filter out 'depth' and 'normal'
+    input_images = [ f for f in input_images if ('depth' not in f) and ('normal' not in f) and ('Image' not in f)]
+    # print(input_images)
+    # st()
 
     # Load labels.
     labels = {}
@@ -76,19 +89,66 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
     if os.path.isfile(meta_fname):
         with open(meta_fname, 'r') as file:
             labels = json.load(file)['labels']
+            # st()
             if labels is not None:
+                try:
+                    pc_rel_paths = { x[0]: x[2] for x in labels }
+                    # print(pc_rel_paths)
+                except:
+                    print("No pointcloud input in dataset")
+                    pc_rel_paths = {}
                 labels = { x[0]: x[1] for x in labels }
+                
             else:
                 labels = {}
-
-    max_idx = maybe_min(len(input_images), max_images)
+    # print(labels)
+    
+    # max_idx = maybe_min(len(input_images), max_images)
+    max_idx = maybe_min(len(labels), max_images)
 
     def iterate_images():
         for idx, fname in enumerate(input_images):
             arch_fname = os.path.relpath(fname, source_dir)
             arch_fname = arch_fname.replace('\\', '/')
             img = np.array(PIL.Image.open(fname))
-            yield dict(img=img, label=labels.get(arch_fname))
+
+            if READ_POINTCLOUD:
+      
+                pc_rel = pc_rel_paths.get(arch_fname[:-4])
+                if pc_rel != None:
+                    pc_fname = os.path.join(source_dir, pc_rel)
+                    pc_df = pd.read_csv(pc_fname)
+                    pc_array = pc_df[['x','y','z','r','g','b','a', 'metallic','roughness']].values.astype(np.float32)
+                    # st()
+                    # reda pc csv
+                    # save as np array
+
+                    if pc_array.shape[0] > NUM_POINTS: # poisson sampling
+                        n_sample_poisson = NUM_POINTS
+                        particle_pos = pc_array[:, :3]
+                        poisson_idx = pcu.downsample_point_cloud_poisson_disk(particle_pos, num_samples=n_sample_poisson)
+                        while poisson_idx.shape[0] < NUM_POINTS:
+                            n_sample_poisson += 50
+                            poisson_idx = pcu.downsample_point_cloud_poisson_disk(particle_pos, num_samples=n_sample_poisson)
+                        poisson_idx = poisson_idx[:NUM_POINTS]
+                        # particle_pos = particle_pos[poisson_idx]
+                        pc_array = pc_array[poisson_idx]    
+                else:
+                    continue
+            else:
+                pc_array=None
+
+            
+            arch_fname = os.path.splitext(arch_fname)[0]
+            label_get = labels.get(arch_fname)
+            if label_get != None:
+                # st()
+                # print('fname, labels.get(fname)', arch_fname)
+                yield dict(img=img, label=labels.get(arch_fname), pc=pc_array)
+            else:
+                # print(arch_fname, ' is not written into json file yet') # in the abo case
+                # st() 
+                pass
             if idx >= max_idx-1:
                 break
     return max_idx, iterate_images()
@@ -98,7 +158,7 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
 def open_image_zip(source, *, max_images: Optional[int]):
     with zipfile.ZipFile(source, mode='r') as z:
         input_images = [str(f) for f in sorted(z.namelist()) if is_image_ext(f)]
-
+        st()
         # Load labels.
         labels = {}
         if 'dataset.json' in z.namelist():
@@ -117,6 +177,7 @@ def open_image_zip(source, *, max_images: Optional[int]):
                 with z.open(fname, 'r') as file:
                     img = PIL.Image.open(file) # type: ignore
                     img = np.array(img)
+            
                 yield dict(img=img, label=labels.get(fname))
                 if idx >= max_idx-1:
                     break
@@ -266,6 +327,7 @@ def make_transform(
 #----------------------------------------------------------------------------
 
 def open_dataset(source, *, max_images: Optional[int]):
+    # st()
     if os.path.isdir(source):
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
@@ -294,6 +356,7 @@ def open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None],
         zf = zipfile.ZipFile(file=dest, mode='w', compression=zipfile.ZIP_STORED)
         def zip_write_bytes(fname: str, data: Union[bytes, str]):
             zf.writestr(fname, data)
+
         return '', zip_write_bytes, zf.close
     else:
         # If the output folder already exists, check that is is
@@ -306,6 +369,7 @@ def open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None],
         if os.path.isdir(dest) and len(os.listdir(dest)) != 0:
             error('--dest folder must be empty')
         os.makedirs(dest, exist_ok=True)
+        st()
 
         def folder_write_bytes(fname: str, data: Union[bytes, str]):
             os.makedirs(os.path.dirname(fname), exist_ok=True)
@@ -324,13 +388,15 @@ def open_dest(dest: str) -> Tuple[str, Callable[[str, Union[bytes, str]], None],
 @click.option('--max-images', help='Output only up to `max-images` images', type=int, default=None)
 @click.option('--transform', help='Input crop/resize mode', type=click.Choice(['center-crop', 'center-crop-wide']))
 @click.option('--resolution', help='Output resolution (e.g., \'512x512\')', metavar='WxH', type=parse_tuple)
+@click.option('--read_pointcloud', help='whether pc.csv is in dataset)', type=boolean, is_flag=True, default=False)
 def convert_dataset(
     ctx: click.Context,
     source: str,
     dest: str,
     max_images: Optional[int],
     transform: Optional[str],
-    resolution: Optional[Tuple[int, int]]
+    resolution: Optional[Tuple[int, int]],
+    read_pointcloud:Optional[boolean]
 ):
     """Convert an image dataset into a dataset archive usable with StyleGAN2 ADA PyTorch.
 
@@ -391,12 +457,19 @@ def convert_dataset(
         --transform=center-crop-wide --resolution=512x384
     """
 
+    if read_pointcloud:
+        global READ_POINTCLOUD
+        READ_POINTCLOUD = True
+        global NUM_POINTS
+        NUM_POINTS = 1024
+
     PIL.Image.init() # type: ignore
 
     if dest == '':
         ctx.fail('--dest output filename or directory must not be an empty string')
 
     num_files, input_iter = open_dataset(source, max_images=max_images)
+    
     archive_root_dir, save_bytes, close_dest = open_dest(dest)
 
     if resolution is None: resolution = (None, None)
@@ -406,6 +479,7 @@ def convert_dataset(
 
     labels = []
     for idx, image in tqdm(enumerate(input_iter), total=num_files):
+        # print(image)
         idx_str = f'{idx:08d}'
         archive_fname = f'{idx_str[:5]}/img{idx_str}.png'
 
@@ -439,17 +513,42 @@ def convert_dataset(
             error(f'Image {archive_fname} attributes must be equal across all images of the dataset.  Got:\n' + '\n'.join(err))
 
         # Save the image as an uncompressed PNG.
+        WHITE_BKGD=True
+        if channels == 4 and WHITE_BKGD:
+            img = img[...,:3] * (img[...,-1:]/255) + (255 - img[...,-1:])
+            img = img.astype(np.uint8)
+            channels = 3
+            # im1 = img.save("geeks_white.png")
+            # st()
         img = PIL.Image.fromarray(img, { 1: 'L', 3: 'RGB', 4: 'RGBA'}[channels])
-        if channels == 4: img = img.convert('RGB')
+        
+        if not WHITE_BKGD:
+            if channels == 4: img = img.convert('RGB')
+            # im1 = img.save("geeks_blk.png")
+            # st()
+
         image_bits = io.BytesIO()
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
+        # print(archive_fname)
         labels.append([archive_fname, image['label']] if image['label'] is not None else None)
+
+        # Save pc.csv also using the same indexed archname
+        pc_array = image['pc']
+        archive_fname_pc = archive_fname.replace('img', 'pc').replace('png', 'csv')
+        string_buffer = io.StringIO()
+        writer = csv.writer(string_buffer)
+        for row in pc_array:
+            writer.writerow(row)
+        save_bytes(os.path.join(archive_root_dir, archive_fname_pc), string_buffer.getvalue())
+        print(archive_fname_pc)
 
     metadata = {
         'labels': labels if all(x is not None for x in labels) else None
     }
+    # print(metadata)
     save_bytes(os.path.join(archive_root_dir, 'dataset.json'), json.dumps(metadata))
+    # print(os.path.join(archive_root_dir, 'dataset.json'))
     close_dest()
 
 #----------------------------------------------------------------------------

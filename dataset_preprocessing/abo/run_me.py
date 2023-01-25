@@ -20,25 +20,28 @@ if __name__ == '__main__':
         # working_dir = '/tmp/tmphal02_sj' # /cars_train.zip
         working_dir = '/home/xuyi/Data'
         # print(working_dir)
-        download_name = 'cars_train.zip'
-        url = 'https://drive.google.com/uc?id=1bThUNtIHx4xEQyffVBSf82ABDDh2HlFn'
-        output_dataset_name = 'cars_128_copy.zip'
+        # download_name = 'cars_train.zip'
+        # url = 'https://drive.google.com/uc?id=1bThUNtIHx4xEQyffVBSf82ABDDh2HlFn'
+        # output_dataset_name = 'abo_128_completed.zip'
+        # output_dataset_name = 'abo_128_completed_white.zip'
+        # output_dataset_name = 'abo_512_completed_white.zip'
+        output_dataset_name = 'debug.zip'
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        extracted_data_path = os.path.join(working_dir, os.path.splitext(download_name)[0])
-
+        # extracted_data_path = os.path.join(working_dir, os.path.splitext(download_name)[0])
+        extracted_data_path = '/home/xuyi/Data/renderer/output_abo'
         print("Downloading data...")
-        zipped_dataset = os.path.join(working_dir, download_name)
+        # zipped_dataset = os.path.join(working_dir, download_name)
         # gdown.download(url, zipped_dataset, quiet=False)
 
         print("Unzipping downloaded data...")
         # shutil.unpack_archive(zipped_dataset, working_dir)
 
         print("Converting camera parameters...")
-        cmd = f"python {os.path.join(dir_path, 'preprocess_shapenet_cameras.py')} --source={extracted_data_path}"
+        cmd = f"python {os.path.join(dir_path, 'preprocess_abo_cameras.py')} --source={extracted_data_path}"
         subprocess.run([cmd], shell=True)
 
         print("Creating dataset zip...")
         cmd = f"python {os.path.join(dir_path, '../../eg3d', 'dataset_tool.py')}"
-        cmd += f" --source {extracted_data_path} --dest {output_dataset_name} --resolution 128x128"
+        cmd += f" --source {extracted_data_path} --dest {output_dataset_name} --resolution 512x512 --read_pointcloud"
         subprocess.run([cmd], shell=True)

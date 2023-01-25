@@ -27,10 +27,13 @@ from metrics import metric_main
 from torch_utils import training_stats
 from torch_utils import custom_ops
 
+from ipdb import set_trace as st
+import numpy as np
+
 #----------------------------------------------------------------------------
 
 def subprocess_fn(rank, c, temp_dir):
-    dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
+    # dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     # Init torch.distributed.
     if c.num_gpus > 1:
@@ -54,7 +57,7 @@ def subprocess_fn(rank, c, temp_dir):
 #----------------------------------------------------------------------------
 
 def launch_training(c, desc, outdir, dry_run):
-    dnnlib.util.Logger(should_flush=True)
+    # dnnlib.util.Logger(should_flush=True)
 
     # Pick output directory.
     prev_run_dirs = []
@@ -193,6 +196,26 @@ def parse_comma_separated_list(s):
 @click.option('--reg_type', help='Type of regularization', metavar='STR',  type=click.Choice(['l1', 'l1-alt', 'monotonic-detach', 'monotonic-fixed', 'total-variation']), required=False, default='l1')
 @click.option('--decoder_lr_mul',    help='decoder learning rate multiplier.', metavar='FLOAT', type=click.FloatRange(min=0), default=1, required=False, show_default=True)
 
+## specially for VolumeGenerator
+@click.option('--backbone',    help='whether use triplane or volume.', type=click.Choice(['triplane', 'volume']), required=False, default='triplane')
+@click.option('--num_points',    help='?.', metavar='INT', type=click.IntRange(min=512), required=False, default=1024) # default=1024 after finishing pipeline
+@click.option('--num_materials',    help='?.', metavar='INT', type=click.IntRange(min=3), required=False, default=9)
+@click.option('--volume_res',    help='volume resolution.', metavar='INT',  type=click.IntRange(min=16), required=False, default=128) # default=128 after finishing pipeline
+@click.option('--decoder_dim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
+@click.option('--decoder_outdim',    help='OSGDecoder.', metavar='INT',  type=click.IntRange(min=8), required=False, default=32) # default=128 after finishing pipeline
+@click.option('--use_ray_directions', help='If true, use_ray_directions during rendering.', metavar='BOOL',  type=bool, required=False, default=True)
+@click.option('--noise_strength', help='Control the magnitude of noises added to 3D volume during upsampling.', metavar='FLOAT', type=click.FloatRange(min=0, max=1), default=0.5, show_default=True)
+
+# specially for VolumeGenerator
+# chamfer
+@click.option('--use_chamfer',    help='Use chamfer loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
+@click.option('--chamfer_reg',    help='chamfer reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=1, required=False, show_default=True)
+@click.option('--use_perception',    help='Use perception loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
+@click.option('--perception_reg',    help='perception reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=1, required=False, show_default=True)
+@click.option('--use_l2',      help='Use L2 loss to regularize G', metavar='BOOL',  type=bool, required=False, default=False)
+@click.option('--l2_reg',      help='l2 reg', metavar='FLOAT', type=click.FloatRange(min=0.5), default=1, required=False, show_default=True)
+
+
 def main(**kwargs):
     """Train a GAN using the techniques described in the paper
     "Alias-Free Generative Adversarial Networks".
@@ -218,6 +241,8 @@ def main(**kwargs):
 
     # Initialize config.
     opts = dnnlib.EasyDict(kwargs) # Command line arguments.
+    # st()
+    opts['mbstd_group']=1 # FIXME
     c = dnnlib.EasyDict() # Main config dict.
     c.G_kwargs = dnnlib.EasyDict(class_name=None, z_dim=512, w_dim=512, mapping_kwargs=dnnlib.EasyDict())
     c.D_kwargs = dnnlib.EasyDict(class_name='training.networks_stylegan2.Discriminator', block_kwargs=dnnlib.EasyDict(), mapping_kwargs=dnnlib.EasyDict(), epilogue_kwargs=dnnlib.EasyDict())
@@ -243,6 +268,8 @@ def main(**kwargs):
     c.D_kwargs.block_kwargs.freeze_layers = opts.freezed
     c.D_kwargs.epilogue_kwargs.mbstd_group_size = opts.mbstd_group
     c.loss_kwargs.r1_gamma = opts.gamma
+    c.loss_kwargs.use_chamfer = opts.use_chamfer
+    c.loss_kwargs.chamfer_reg = opts.chamfer_reg
     c.G_opt_kwargs.lr = (0.002 if opts.cfg == 'stylegan2' else 0.0025) if opts.glr is None else opts.glr
     c.D_opt_kwargs.lr = opts.dlr
     c.metrics = opts.metrics
@@ -264,7 +291,21 @@ def main(**kwargs):
 
     # Base configuration.
     c.ema_kimg = c.batch_size * 10 / 32
-    c.G_kwargs.class_name = 'training.triplane.TriPlaneGenerator'
+
+    ## conditional generator with pointcloud input
+    if opts.backbone == 'volume':
+        c.G_kwargs.class_name = 'training.volume.VolumeGenerator'
+        # c.G_kwargs.pc_dim = np.array([opts.num_points, opts.num_materials]) # num_pc or the num_material??
+        c.G_kwargs.pc_dim = [opts.num_points, opts.num_materials]
+        c.G_kwargs.volume_res = opts.volume_res
+        c.G_kwargs.decoder_dim = opts.decoder_dim
+        c.G_kwargs.noise_strength = opts.noise_strength
+        # c.D_kwargs.class_name = 'training.volume_discriminator.VolumeDualDiscriminator'
+        # c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
+        # c.G_kwargs.decoder_outdim = opts.decoder_outdim
+    else:
+        c.G_kwargs.class_name = 'training.triplane.TriPlaneGenerator'
+        
     c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
     c.G_kwargs.fused_modconv_default = 'inference_only' # Speed up training by using regular convolutions instead of grouped convolutions.
     c.loss_kwargs.filter_mode = 'antialiased' # Filter mode for raw images ['antialiased', 'none', float [0-1]]
@@ -296,6 +337,7 @@ def main(**kwargs):
         'reg_type': opts.reg_type, # for experimenting with variations on density regularization
         'decoder_lr_mul': opts.decoder_lr_mul, # learning rate multiplier for decoder
         'sr_antialias': True,
+        'use_ray_directions': opts.use_ray_directions,
     }
 
     if opts.cfg == 'ffhq':
@@ -329,6 +371,19 @@ def main(**kwargs):
             'avg_camera_radius': 1.7,
             'avg_camera_pivot': [0, 0, 0],
         })
+    elif opts.cfg == 'abo_dataset':
+        rendering_options.update({
+            'depth_resolution': 64,
+            'depth_resolution_importance': 16,
+            'ray_start': 0.1,
+            'ray_end': 2.6,
+            'box_warp': 1.6,
+            'white_back': True,
+            'avg_camera_radius': 1.7,
+            'avg_camera_pivot': [0, 0, 0],
+            # 'decoder_output_dim': 8,
+        })
+     
     else:
         assert False, "Need to specify config"
 
@@ -352,6 +407,11 @@ def main(**kwargs):
     c.G_kwargs.sr_kwargs = dnnlib.EasyDict(channel_base=opts.cbase, channel_max=opts.cmax, fused_modconv_default='inference_only')
 
     c.loss_kwargs.style_mixing_prob = opts.style_mixing_prob
+    c.loss_kwargs.use_perception  = opts.use_perception
+    c.loss_kwargs.perception_reg = opts.perception_reg
+    c.loss_kwargs.use_l2  = opts.use_l2
+    c.loss_kwargs.l2_reg = opts.l2_reg
+
 
     # Augmentation.
     if opts.aug != 'noaug':

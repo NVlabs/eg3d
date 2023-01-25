@@ -21,7 +21,7 @@ from training.networks_stylegan2 import SynthesisBlock
 import numpy as np
 from training.networks_stylegan3 import SynthesisLayer as AFSynthesisLayer
 
-
+from ipdb import set_trace as st
 #----------------------------------------------------------------------------
 
 # for 512x512 generation

@@ -17,12 +17,14 @@ import PIL.Image
 import json
 import torch
 import dnnlib
+from ipdb import set_trace as st
 
 try:
     import pyspng
 except ImportError:
     pyspng = None
 
+import pandas as pd
 #----------------------------------------------------------------------------
 
 class Dataset(torch.utils.data.Dataset):
@@ -54,7 +56,8 @@ class Dataset(torch.utils.data.Dataset):
 
     def _get_raw_labels(self):
         if self._raw_labels is None:
-            self._raw_labels = self._load_raw_labels() if self._use_labels else None
+            # self._raw_labels = self._load_raw_labels() if self._use_labels else None
+            self._raw_labels = self._load_raw_labels()
             if self._raw_labels is None:
                 self._raw_labels = np.zeros([self._raw_shape[0], 0], dtype=np.float32)
             assert isinstance(self._raw_labels, np.ndarray)
@@ -73,7 +76,9 @@ class Dataset(torch.utils.data.Dataset):
         raise NotImplementedError
 
     def _load_raw_labels(self): # to be overridden by subclass
-        raise NotImplementedError
+        st()
+        print('to be overridden by subclass')
+        # raise NotImplementedError
 
     def __getstate__(self):
         return dict(self.__dict__, _raw_labels=None)
@@ -95,7 +100,12 @@ class Dataset(torch.utils.data.Dataset):
         if self._xflip[idx]:
             assert image.ndim == 3 # CHW
             image = image[:, :, ::-1]
-        return image.copy(), self.get_label(idx)
+        try:
+            pointcloud = self._load_raw_pointcloud(self._raw_idx[idx])
+        except:
+            pointcloud = np.empty([1,0])
+
+        return image.copy(), self.get_label(idx), pointcloud.copy()
 
     def get_label(self, idx):
         label = self._get_raw_labels()[self._raw_idx[idx]]
@@ -104,6 +114,10 @@ class Dataset(torch.utils.data.Dataset):
             onehot[label] = 1
             label = onehot
         return label.copy()
+    
+    def get_pointcloud(self, idx):
+        pointcloud = self._load_raw_pointcloud(self._raw_idx[idx])
+        return pointcloud.copy()
 
     def get_details(self, idx):
         d = dnnlib.EasyDict()
@@ -136,6 +150,7 @@ class Dataset(torch.utils.data.Dataset):
 
     @property
     def label_shape(self):
+        # st()
         if self._label_shape is None:
             raw_labels = self._get_raw_labels()
             if raw_labels.dtype == np.int64:
@@ -151,6 +166,7 @@ class Dataset(torch.utils.data.Dataset):
 
     @property
     def has_labels(self):
+        
         return any(x != 0 for x in self.label_shape)
 
     @property
@@ -173,12 +189,15 @@ class ImageFolderDataset(Dataset):
             self._all_fnames = {os.path.relpath(os.path.join(root, fname), start=self._path) for root, _dirs, files in os.walk(self._path) for fname in files}
         elif self._file_ext(self._path) == '.zip':
             self._type = 'zip'
+            # st()
             self._all_fnames = set(self._get_zipfile().namelist())
         else:
             raise IOError('Path must point to a directory or zip')
 
         PIL.Image.init()
         self._image_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) in PIL.Image.EXTENSION)
+        self._pc_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) == '.csv')
+
         if len(self._image_fnames) == 0:
             raise IOError('No image files found in the specified path')
 
@@ -187,6 +206,7 @@ class ImageFolderDataset(Dataset):
         if resolution is not None and (raw_shape[2] != resolution or raw_shape[3] != resolution):
             raise IOError('Image files do not match the specified resolution')
         super().__init__(name=name, raw_shape=raw_shape, **super_kwargs)
+        # st()
 
     @staticmethod
     def _file_ext(fname):
@@ -226,8 +246,26 @@ class ImageFolderDataset(Dataset):
             image = image[:, :, np.newaxis] # HW => HWC
         image = image.transpose(2, 0, 1) # HWC => CHW
         return image
+    
+    def _load_raw_pointcloud(self, raw_idx):
+        fname = self._pc_fnames[raw_idx]
+
+        with self._open_file(fname) as f:
+            df = pd.read_csv(f, header=None)
+            pc_array = df.values.astype(np.float32)
+        return pc_array
+
+    def get_label_and_pc(self, idx):
+        label = self._get_raw_labels()[self._raw_idx[idx]]
+        if label.dtype == np.int64:
+            onehot = np.zeros(self.label_shape, dtype=np.float32)
+            onehot[label] = 1
+            label = onehot
+        pointcloud = self._load_raw_pointcloud(self._raw_idx[idx])
+        return label.copy(), pointcloud.copy()
 
     def _load_raw_labels(self):
+        
         fname = 'dataset.json'
         if fname not in self._all_fnames:
             return None
@@ -235,6 +273,7 @@ class ImageFolderDataset(Dataset):
             labels = json.load(f)['labels']
         if labels is None:
             return None
+        
         labels = dict(labels)
         labels = [labels[fname.replace('\\', '/')] for fname in self._image_fnames]
         labels = np.array(labels)

@@ -14,6 +14,8 @@ archive
 *.ply
 eval
 out
+__pycache__
+try-runs
 
 # evaluation:
 temp/
@@ -25,3 +27,6 @@ vids/
 stylegan3/results
 eg3d/results
 eg3d_results
+
+*runs/
+*ipynb

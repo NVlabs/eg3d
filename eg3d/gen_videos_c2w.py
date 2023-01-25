@@ -112,7 +112,7 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
     elif cfg == 'Shapenet':
         focal_length = 1.7074
     elif cfg == 'ABO':
-        focal_length = 0.3889
+        focal_length = 1.3889
     else:
         print("Not supported dataset type")
     print("Focal length: ", focal_length)
@@ -149,6 +149,10 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
     if gen_shapes:
         outdir = 'interpolation_{}_{}/'.format(all_seeds[0], all_seeds[1])
         os.makedirs(outdir, exist_ok=True)
+
+
+    
+
     all_poses = []
     for frame_idx in tqdm(range(num_keyframes * w_frames)):
         imgs = []
@@ -156,14 +160,29 @@ def gen_interp_video(G, mp4: str, seeds, shuffle_seed=None, w_frames=60*4, kind=
             for xi in range(grid_w):
                 pitch_range = 0.25
                 yaw_range = 0.35
-                cam2world_pose = LookAtPoseSampler.sample(3.14/2 + yaw_range * np.sin(2 * 3.14 * frame_idx / (num_keyframes * w_frames)),
-                                                        3.14/2 -0.05 + pitch_range * np.cos(2 * 3.14 * frame_idx / (num_keyframes * w_frames)),
-                                                        camera_lookat_point, radius=G.rendering_kwargs['avg_camera_radius'], device=device)
+                try:
+                    c_idx = frame_idx%len(PREDEFINED_POSES)
+                    # print(c_idx)
+                    cam2world_pose = PREDEFINED_POSES[c_idx:c_idx+1]
+                except:
+                    st()
+                    cam2world_pose = LookAtPoseSampler.sample(3.14/2 + yaw_range * np.sin(2 * 3.14 * frame_idx / (num_keyframes * w_frames)),
+                                                            3.14/2 -0.05 + pitch_range * np.cos(2 * 3.14 * frame_idx / (num_keyframes * w_frames)),
+                                                            camera_lookat_point, radius=G.rendering_kwargs['avg_camera_radius'], device=device)
             
                 all_poses.append(cam2world_pose.squeeze().cpu().numpy())
-                focal_length = 4.2647 if (cfg != 'Shapenet' or cfg != 'ABO')  else 1.7074 # shapenet has higher FOV
+                # focal_length = 4.2647 if (cfg != 'Shapenet' and cfg != 'ABO')  else 1.7074 # shapenet has higher FOV
+                if (cfg != 'Shapenet' and cfg != 'ABO'):
+                    focal_length = 4.2647
+                elif cfg == 'Shapenet':
+                    focal_length = 1.7074
+                elif cfg == 'ABO':
+                    focal_length = 1.3889
+                else:
+                    print("Not supported dataset type")
                 intrinsics = torch.tensor([[focal_length, 0, 0.5], [0, focal_length, 0.5], [0, 0, 1]], device=device)
                 c = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
+                # st()
 
                 interp = grid[yi][xi]
                 w = torch.from_numpy(interp(frame_idx / w_frames).astype(np.float32)).to(device)
@@ -293,6 +312,7 @@ def parse_tuple(s: Union[str, Tuple[int,int]]) -> Tuple[int, int]:
 @click.option('--interpolate', type=bool, help='Interpolate between seeds', default=True, show_default=True)
 @click.option('--pointcloud_files', cls=PythonLiteralOption, default=[])
 @click.option('--data_zip', help='Dataset in zip format', type=str, required=False, metavar='DIR')
+@click.option('--pose_file', help='predefined c2ws for abo dataset', type=str, required=False, metavar='DIR')
 
 def generate_images(
     network_pkl: str,
@@ -307,6 +327,7 @@ def generate_images(
     reload_modules: bool,
     cfg: str,
     pointcloud_files: List[str],
+    pose_file: str,
     data_zip: str,
     image_mode: str,
     sampling_multiplier: float,
@@ -356,6 +377,7 @@ def generate_images(
 
     
     # st()
+    ################################################
     global PC_FILES 
     
     def _file_ext(fname):
@@ -365,8 +387,7 @@ def generate_images(
         # assert self._type == 'zip'
         _zipfile = zipfile.ZipFile(data_zip)
         return _zipfile
-    
-    
+
     def _load_raw_pointcloud(raw_idx):
         fname = _pc_fnames[raw_idx]
         
@@ -375,7 +396,6 @@ def generate_images(
             pc_array = df.values.astype(np.float32)
         return pc_array
     
-
     def _load_raw_pointcloud_by_name(f):
         # fname = _pc_fnames[raw_idx]
         
@@ -397,7 +417,34 @@ def generate_images(
         # st()
         indices = [205,307, 0,102]
         PC_FILES = torch.tensor(np.asarray([_load_raw_pointcloud(i) for i in indices]), device=device) # B, 1024, 9
+
+    ################################################
+    global PREDEFINED_POSES
+
+    if pose_file is not None:
+        import json
         
+        with open(pose_file, 'r') as f:
+            meta = json.load(f)
+        all_poses=[]
+        blender2opencv = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        for frame in meta ['frames']:
+            # rgb_path = frame['file_path']
+            # relative_path = os.path.relpath(rgb_path, dataset_path)
+            # print(relative_path)
+            
+            # intrinsics = intrinsic_for_all
+            pose = (np.array(frame['transform_matrix'])@blender2opencv)
+            # print(len(pose))
+            
+            # cameras[relative_path] = {'pose': pose, 'intrinsics': intrinsics, 'scene-name': os.path.basename(scene_folder_path),\
+            #     'pc_csv':pc_relative_path}
+            all_poses.append(pose)
+        
+        PREDEFINED_POSES = torch.tensor(np.stack(all_poses), device=device)
+       
+
+            
     
 
     if interpolate:
