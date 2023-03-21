@@ -20,6 +20,8 @@ For business inquiries, please visit our website and submit the form: [NVIDIA Re
   - `cd eg3d`
   - `conda env create -f environment.yml`
   - `conda activate eg3d`
+* You can use a Docker environment that fits docker environments:
+  - `docker pull sunggukcha/eg3d`
 
 ## Getting started
 
