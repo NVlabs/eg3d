@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 from inspect import formatargvalues
 import numpy as np
@@ -29,7 +27,7 @@ class ZoomWidget:
             imgui.text('FOV')
             imgui.same_line(viz.label_w)
             with imgui_utils.item_width(viz.font_size * 10):
-                _changed, self.fov = imgui.slider_float('##fov', self.fov, 12, 45, format='%.2f Degrees')
+                _changed, self.fov = imgui.slider_float('##fov', self.fov, 12, 110, format='%.2f Degrees')
 
             imgui.same_line(viz.label_w + viz.font_size * 13 + viz.button_w + viz.spacing * 3)
             snapped = round(self.fov)

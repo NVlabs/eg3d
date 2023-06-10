@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Miscellaneous utilities used internally by the quality metrics."""
 
@@ -19,6 +17,9 @@ import uuid
 import numpy as np
 import torch
 import dnnlib
+
+# from SPIN import process_EG3D_image
+import consts
 
 #----------------------------------------------------------------------------
 
@@ -67,6 +68,24 @@ def iterate_random_labels(opts, batch_size):
             c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_size)]
             c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
             yield c
+
+def iterate_random_imgs_labels(opts, batch_size):
+    dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
+    if opts.G.c_dim == 0:
+        c = torch.zeros([batch_size, opts.G.c_dim], device=opts.device)
+        while True:
+            idx = [np.random.randint(len(dataset)) for _i in range(batch_size)]
+            img = torch.from_numpy(np.stack([dataset._load_raw_image(idx[_i]) for _i in range(batch_size)])).pin_memory().to(opts.device)
+            yield (img, c)
+    else:
+        while True:
+            idx = [np.random.randint(len(dataset)) for _i in range(batch_size)]
+            c = [dataset.get_label(idx[_i]) for _i in range(batch_size)]
+            img = [dataset._load_raw_image(idx[_i]) for _i in range(batch_size)]
+            c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
+            img = torch.from_numpy(np.stack(img)).pin_memory().to(opts.device)
+            yield (img, c)
+
 
 #----------------------------------------------------------------------------
 
@@ -279,3 +298,66 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
     return stats
 
 #----------------------------------------------------------------------------
+
+def compute_feature_stats_for_generator_warp_overwrite(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, batch_gen=None, **stats_kwargs):
+    if batch_gen is None:
+        batch_gen = min(batch_size, 4)
+    assert batch_size % batch_gen == 0
+
+    # Setup generator and labels.
+    G = copy.deepcopy(opts.G).eval().requires_grad_(False).to(opts.device)
+    c_iter = iterate_random_labels(opts=opts, batch_size=batch_gen)
+
+    # Initialize.
+    stats = FeatureStats(**stats_kwargs)
+    assert stats.max_items is not None
+    progress = opts.progress.sub(tag='generator features', num_items=stats.max_items, rel_lo=rel_lo, rel_hi=rel_hi)
+    detector = get_feature_detector(url=detector_url, device=opts.device, num_gpus=opts.num_gpus, rank=opts.rank, verbose=progress.verbose)
+
+    SPIN_processor = process_EG3D_image.EG3D_ImageProcessor(G.rendering_kwargs['cfg_name'], )
+
+    # Main loop.
+    while not stats.is_full():
+        images = []
+        for _i in range(batch_size // batch_gen):
+            cval = next(c_iter)
+            z = torch.randn([batch_gen, G.z_dim], device=opts.device)
+
+            G.rendering_kwargs['projector'] = 'none'
+            G.rendering_kwargs['project_inside_only'] = False
+            img = G(z=z, c=cval, **opts.G_kwargs)['image']
+            img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+
+            G.rendering_kwargs['projector'] = 'surface_field'
+            G.rendering_kwargs['project_inside_only'] = True
+            G.rendering_kwargs['cam2world'] = cval[:, :16].view(cval.shape[0], 4, 4)
+            G.rendering_kwargs['intrinsics'] = cval[:, 16:25].view(cval.shape[0], 3, 3)
+
+            params = [SPIN_processor.forward(img[i].permute(1,2,0)) for i in range(img.shape[0])]
+            betas = torch.cat([param['pred_betas'] for param in params], dim=0)
+            orients = torch.cat([param['global_orient'] for param in params], dim=0)
+            bodyposes = torch.cat([param['pred_rotmat'] for param in params], dim=0)[:, 3:]
+            if G.rendering_kwargs['cfg_name'] == 'surreal':
+                transl = torch.from_numpy(np.array(consts.SURREAL_TRANSL)).expand(betas.shape[0], -1).to(betas.device)
+            elif G.rendering_kwargs['cfg_name'] == 'aist' or G.rendering_kwargs['cfg_name'] == 'aist_rescaled' or G.rendering_kwargs['cfg_name'] == 'surreal_new':
+                transl = torch.from_numpy(np.array(consts.AIST_TRANSL)).expand(betas.shape[0], -1).to(betas.device)
+            else:
+                print(f"Error, unsupported dataset: {G.rendering_kwargs['cfg_name']}")
+                exit()
+
+            G.renderer.smpl_avg_body_pose = bodyposes
+            G.renderer.smpl_avg_orient = orients
+            G.renderer.smpl_avg_transl = transl
+            G.renderer.smpl_avg_betas = betas
+
+            img = G(z=z, c=cval, **opts.G_kwargs)['image']
+            img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+
+            images.append(img)
+        images = torch.cat(images)
+        if images.shape[1] == 1:
+            images = images.repeat([1, 3, 1, 1])
+        features = detector(images, **detector_kwargs)
+        stats.append_torch(features, num_gpus=opts.num_gpus, rank=opts.rank)
+        progress.update(stats.num_items)
+    return stats

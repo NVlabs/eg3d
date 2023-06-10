@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import re
 import contextlib
@@ -160,7 +158,16 @@ def copy_params_and_buffers(src_module, dst_module, require_all=False):
     src_tensors = dict(named_params_and_buffers(src_module))
     for name, tensor in named_params_and_buffers(dst_module):
         assert (name in src_tensors) or (not require_all)
+        if name not in src_tensors:
+            print(f'Warning: parameter {name} is not in the source module!')
         if name in src_tensors:
+            # AWB CHANGE: Handle case where checkpoint networks are not same as current network (i.e. mapping network)
+            if src_tensors[name].shape != tensor.shape:
+                print(f'Warning: shape of tensor {name} ({tensor.shape}) in current model is different from checkpoint shape ({src_tensors[name].shape})')
+                if require_all:
+                    exit()
+                else:
+                    continue
             tensor.copy_(src_tensors[name].detach()).requires_grad_(tensor.requires_grad)
 
 #----------------------------------------------------------------------------

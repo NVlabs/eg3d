@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Main training loop."""
 
@@ -230,6 +228,15 @@ def training_loop(
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
 
+        out = [G_ema(z=z, c=c, noise_mode='const') for z, c in zip(grid_z, grid_c)]
+
+        images = torch.cat([o['image'].cpu() for o in out]).numpy()
+        images_raw = torch.cat([o['image_raw'].cpu() for o in out]).numpy()
+        images_depth = -torch.cat([o['image_depth'].cpu() for o in out]).numpy()
+        save_image_grid(images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+        save_image_grid(images_raw, os.path.join(run_dir, 'fakes_raw_init.png'), drange=[-1,1], grid_size=grid_size)
+        save_image_grid(images_depth, os.path.join(run_dir, 'fakes_depth_init.png'), drange=[images_depth.min(), images_depth.max()], grid_size=grid_size)
+
     # Initialize logs.
     if rank == 0:
         print('Initializing logs...')
@@ -359,12 +366,24 @@ def training_loop(
         # Save image snapshot.
         if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
             out = [G_ema(z=z, c=c, noise_mode='const') for z, c in zip(grid_z, grid_c)]
+            projector_orig = G_ema.rendering_kwargs['projector']
+            G_ema.rendering_kwargs['projector'] = 'none'
+            G_ema.rendering_kwargs['canon_logging'] = True
+            out_unwarped = [G_ema(z=z, c=c, noise_mode='const') for z, c in zip(grid_z, grid_c)]
+            G_ema.rendering_kwargs['projector'] = projector_orig
+            G_ema.rendering_kwargs['canon_logging'] = False
             images = torch.cat([o['image'].cpu() for o in out]).numpy()
             images_raw = torch.cat([o['image_raw'].cpu() for o in out]).numpy()
             images_depth = -torch.cat([o['image_depth'].cpu() for o in out]).numpy()
+            images_unwarped = torch.cat([o['image'].cpu() for o in out_unwarped]).numpy()
+            images_unwarped_raw = torch.cat([o['image_raw'].cpu() for o in out_unwarped]).numpy()
+            images_unwarped_depth = -torch.cat([o['image_depth'].cpu() for o in out_unwarped]).numpy()
             save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png'), drange=[-1,1], grid_size=grid_size)
             save_image_grid(images_raw, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_raw.png'), drange=[-1,1], grid_size=grid_size)
             save_image_grid(images_depth, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_depth.png'), drange=[images_depth.min(), images_depth.max()], grid_size=grid_size)
+            save_image_grid(images_unwarped, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_canonical.png'), drange=[-1,1], grid_size=grid_size)
+            save_image_grid(images_unwarped_raw, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_raw_canonical.png'), drange=[-1,1], grid_size=grid_size)
+            save_image_grid(images_unwarped_depth, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_depth_canonical.png'), drange=[images_depth.min(), images_depth.max()], grid_size=grid_size)
 
             #--------------------
             # # Log forward-conditioned images
@@ -373,23 +392,18 @@ def training_loop(
             # intrinsics = torch.tensor([[4.2647, 0, 0.5], [0, 4.2647, 0.5], [0, 0, 1]], device=device)
             # forward_label = torch.cat([forward_cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
 
-            # grid_ws = [G_ema.mapping(z, forward_label.expand(z.shape[0], -1)) for z, c in zip(grid_z, grid_c)]
-            # out = [G_ema.synthesis(ws, c=c, noise_mode='const') for ws, c in zip(grid_ws, grid_c)]
+            images = torch.cat([o['image'].cpu() for o in out]).numpy()
+            images_raw = torch.cat([o['image_raw'].cpu() for o in out]).numpy()
+            images_depth = -torch.cat([o['image_depth'].cpu() for o in out]).numpy()
+            save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_f.png'), drange=[-1,1], grid_size=grid_size)
+            save_image_grid(images_raw, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_raw_f.png'), drange=[-1,1], grid_size=grid_size)
+            save_image_grid(images_depth, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_depth_f.png'), drange=[images_depth.min(), images_depth.max()], grid_size=grid_size)
 
-            # images = torch.cat([o['image'].cpu() for o in out]).numpy()
-            # images_raw = torch.cat([o['image_raw'].cpu() for o in out]).numpy()
-            # images_depth = -torch.cat([o['image_depth'].cpu() for o in out]).numpy()
-            # save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_f.png'), drange=[-1,1], grid_size=grid_size)
-            # save_image_grid(images_raw, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_raw_f.png'), drange=[-1,1], grid_size=grid_size)
-            # save_image_grid(images_depth, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_depth_f.png'), drange=[images_depth.min(), images_depth.max()], grid_size=grid_size)
-
-            #--------------------
-            # # Log Cross sections
-
-            # grid_ws = [G_ema.mapping(z, c.expand(z.shape[0], -1)) for z, c in zip(grid_z, grid_c)]
-            # out = [sample_cross_section(G_ema, ws, w=G.rendering_kwargs['box_warp']) for ws, c in zip(grid_ws, grid_c)]
-            # crossections = torch.cat([o.cpu() for o in out]).numpy()
-            # save_image_grid(crossections, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_crossection.png'), drange=[-50,100], grid_size=grid_size)
+            # Cross sections
+            grid_ws = [G_ema.mapping(z, c.expand(z.shape[0], -1)) for z, c in zip(grid_z, grid_c)]
+            out = [sample_cross_section(G_ema, ws, w=G.rendering_kwargs['box_warp']) for ws, c in zip(grid_ws, grid_c)]
+            crossections = torch.cat([o.cpu() for o in out]).numpy()
+            save_image_grid(crossections, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}_crossection.png'), drange=[-50,100], grid_size=grid_size)
 
         # Save network snapshot.
         snapshot_pkl = None

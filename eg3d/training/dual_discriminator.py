@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Discriminator architectures from the paper
 "Efficient Geometry-aware 3D Generative Adversarial Networks"."""
@@ -119,11 +117,15 @@ class DualDiscriminator(torch.nn.Module):
         block_kwargs        = {},       # Arguments for DiscriminatorBlock.
         mapping_kwargs      = {},       # Arguments for MappingNetwork.
         epilogue_kwargs     = {},       # Arguments for DiscriminatorEpilogue.
+        rendering_kwargs    = {},       # Rendering kwargs
     ):
         super().__init__()
+        self.rendering_kwargs = rendering_kwargs
         img_channels *= 2
 
         self.c_dim = c_dim
+        # AWB: condition on camera params and SMPL pose only
+        c_dim = 107
         self.img_resolution = img_resolution
         self.img_resolution_log2 = int(np.log2(img_resolution))
         self.img_channels = img_channels
@@ -154,6 +156,15 @@ class DualDiscriminator(torch.nn.Module):
         self.disc_c_noise = disc_c_noise
 
     def forward(self, img, c, update_emas=False, **block_kwargs):
+        # AWB change: condition on camera params and SMPL pose only
+        c = c[:, :107]
+        if self.rendering_kwargs['c_disc_bp_conditioning_zero']:
+            c_cam = c[:, :25]
+            c = torch.zeros_like(c)
+            c[:, :25] = c_cam
+        
+        # assert img['image_raw'].shape[-2:] == (64, 64)
+        # image_raw = torch.nn.functional.interpolate(img['image_raw'], size=img['image'].shape[-2:], mode='bilinear', align_corners=False)
         image_raw = filtered_resizing(img['image_raw'], size=img['image'].shape[-1], f=self.resample_filter)
         img = torch.cat([img['image'], image_raw], 1)
 

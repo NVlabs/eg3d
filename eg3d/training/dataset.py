@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Streaming images and labels from datasets created with dataset_tool.py."""
 
@@ -17,6 +15,7 @@ import PIL.Image
 import json
 import torch
 import dnnlib
+from pathlib import Path
 
 try:
     import pyspng
@@ -228,17 +227,73 @@ class ImageFolderDataset(Dataset):
         return image
 
     def _load_raw_labels(self):
-        fname = 'dataset.json'
-        if fname not in self._all_fnames:
+        labels = None
+        if 'dataset.mat' in self._all_fnames:
+            # This is faster and hence preferred.
+            import scipy.io as sio
+            labels = sio.loadmat(self._open_file('dataset.mat'))['labels']
+            labels = [(str(x[0][0]), x[1][0]) for x in labels]
+        elif 'dataset.json' in self._all_fnames:
+            with self._open_file('dataset.json') as f:
+                labels = json.load(f)['labels']
+        else:
             return None
-        with self._open_file(fname) as f:
-            labels = json.load(f)['labels']
         if labels is None:
             return None
         labels = dict(labels)
         labels = [labels[fname.replace('\\', '/')] for fname in self._image_fnames]
         labels = np.array(labels)
         labels = labels.astype({1: np.int64, 2: np.float32}[labels.ndim])
+
+        # AWB CHANGE: Load in body poses as well, only if they are in a separate file
+        if 'body_poses.json' in self._all_fnames:
+            with self._open_file('body_poses.json') as f: bodypose_labels = json.load(f)
+            if bodypose_labels is None: return labels
+
+            bodypose_labels = dict(bodypose_labels)
+            bodypose_labels = [bodypose_labels[Path(fname).stem] for fname in self._image_fnames]
+            bodypose_labels = np.array(bodypose_labels)
+
+            ZERO_ORIENT_SURREAL = True
+            if ZERO_ORIENT_SURREAL:
+                import consts
+                bodypose_labels[:, :3] = np.array(consts.SURREAL_ORIENT_AVG)
+
+            bodypose_labels = bodypose_labels.astype(np.float32)
+
+            labels = np.concatenate((labels, bodypose_labels), axis=-1)
+
+        # else:
+        #     # assert False
+        #     labels = labels[:, :25]
+        #     labels = np.concatenate([labels, np.zeros((labels.shape[0], 107-25), dtype=np.float32)], axis=-1)
+        # Ensure that the label dim has body poses
+        assert labels.shape[-1] == 107 or labels.shape[-1] == 110, labels.shape
+        if labels.shape[-1] == 110:
+            print(f'MODEL WITH SMPL TRANSLATION!')
+
+        # AWB CHANGE: Load in warpings
+        if 'warpings_precomputed.mat' in self._all_fnames:
+            # This is faster and hence preferred.
+            import scipy.io as sio
+            warping_labels = sio.loadmat(self._open_file('warpings_precomputed.mat'))
+        elif 'warpings_precomputed.json' in self._all_fnames:
+            with self._open_file('warpings_precomputed.json') as f: warping_labels = json.load(f)
+        else:
+            warping_labels = None
+
+        if warping_labels is not None:
+            warping_labels = dict(warping_labels)
+            warping_labels = [warping_labels[fname][0] for fname in self._image_fnames]
+            warping_labels = np.array(warping_labels)
+            warping_labels = warping_labels.astype(np.float32)
+        else:
+            # warping_labels = np.zeros((labels.shape[0], 16*16*16*3)).astype(np.float32)
+            warping_labels = np.zeros((labels.shape[0], 1)).astype(np.float32)
+
+        labels = np.concatenate((labels, warping_labels), axis=-1)
+
         return labels
 
+#----------------------------------------------------------------------------
 #----------------------------------------------------------------------------

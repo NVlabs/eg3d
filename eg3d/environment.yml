@@ -1,14 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
-#
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
-
-name: eg3d
+name: eg3d-alex
 channels:
   - pytorch
   - nvidia
@@ -20,6 +10,7 @@ dependencies:
   - pillow=8.3.1
   - scipy=1.7.1
   - pytorch=1.11.0
+  - torchvision
   - cudatoolkit=11.1
   - requests=2.26.0
   - tqdm=4.62.2
@@ -35,3 +26,10 @@ dependencies:
     - psutil
     - mrcfile
     - tensorboard
+    - smplx
+    - open3d
+    - trimesh
+    - scikit-image
+    - chumpy
+    - opencv-python
+    - pyrender

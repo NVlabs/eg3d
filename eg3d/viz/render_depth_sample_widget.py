@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import imgui
 from gui_utils import imgui_utils
@@ -16,8 +14,8 @@ from gui_utils import imgui_utils
 class RenderDepthSampleWidget:
     def __init__(self, viz):
         self.viz        = viz
-        self.depth_mult            = 2
-        self.depth_importance_mult = 2
+        self.depth_mult            = 1
+        self.depth_importance_mult = 1
         self.render_types = [.5, 1, 2, 4]
         self.labels       = ['0.5x', '1x', '2x', '4x']
 

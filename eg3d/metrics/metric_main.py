@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Main API for computing and reporting quality metrics."""
 
@@ -18,11 +16,6 @@ import dnnlib
 
 from . import metric_utils
 from . import frechet_inception_distance
-from . import kernel_inception_distance
-from . import precision_recall
-from . import perceptual_path_length
-from . import inception_score
-from . import equivariance
 
 #----------------------------------------------------------------------------
 
@@ -83,6 +76,42 @@ def report_metric(result_dict, run_dir=None, snapshot_pkl=None):
 
 #----------------------------------------------------------------------------
 # Recommended metrics.
+
+@register_metric
+def pck(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    pck = keypoint_detection.compute_pck(opts, max_real=None, num_gen=10000)
+    return dict(pck10k=pck)
+
+@register_metric
+def fid10k_10k_warp(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid_warp(opts, max_real=10000, num_gen=10000)
+    return dict(fid10k_10k_warp=fid)
+
+@register_metric
+def fid10k_10k(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid(opts, max_real=10000, num_gen=10000)
+    return dict(fid10k_10k=fid)
+
+@register_metric
+def fid10k_full_warp(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid_warp(opts, max_real=None, num_gen=10000)
+    return dict(fid10k_full_warp=fid)
+
+@register_metric
+def fid10k_full(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid(opts, max_real=None, num_gen=10000)
+    return dict(fid10k_full=fid)
+
+@register_metric
+def fid50k_full_warp(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid_warp(opts, max_real=None, num_gen=50000)
+    return dict(fid50k_full_warp=fid)
 
 @register_metric
 def fid50k_full(opts):

@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Train a GAN using the techniques described in the paper
 "Efficient Geometry-aware 3D Generative Adversarial Networks."
@@ -136,6 +134,12 @@ def parse_comma_separated_list(s):
 @click.option('--batch',        help='Total batch size', metavar='INT',                         type=click.IntRange(min=1), required=True)
 @click.option('--gamma',        help='R1 regularization weight', metavar='FLOAT',               type=click.FloatRange(min=0), required=True)
 
+# CHANGE: projector and masking for points to project
+@click.option('--projector',    help='projector for 3D point warping',                          type=click.Choice(['none', 'mvc', 'skinning', 'surface_field', 'mvc_grid']), default='none', show_default=True)
+@click.option('--warping_mask', help='how to mask points to be warped',                         type=click.Choice(['none', 'cube', 'mesh']), default='none', show_default=True)
+@click.option('--box_warp_pre_deform', help='apply box warp before deformation',                type=bool, default=False, show_default=True)
+@click.option('--mesh_clip_offset', help='factor for mesh enlargement',                         type=click.FloatRange(min=0), required=False, default=0.05)
+
 # Optional features.
 @click.option('--cond',         help='Train conditional model', metavar='BOOL',                 type=bool, default=True, show_default=True)
 @click.option('--mirror',       help='Enable dataset x-flips', metavar='BOOL',                  type=bool, default=False, show_default=True)
@@ -173,11 +177,11 @@ def parse_comma_separated_list(s):
 
 @click.option('--blur_fade_kimg', help='Blur over how many', metavar='INT',  type=click.IntRange(min=1), required=False, default=200)
 @click.option('--gen_pose_cond', help='If true, enable generator pose conditioning.', metavar='BOOL',  type=bool, required=False, default=False)
+@click.option('--disc_bodypose_cond', help='If true, use body pose conditioning in discriminator', metavar='BOOL', type=bool, required=False, default=False)
 @click.option('--c-scale', help='Scale factor for generator pose conditioning.', metavar='FLOAT',  type=click.FloatRange(min=0), required=False, default=1)
 @click.option('--c-noise', help='Add noise for generator pose conditioning.', metavar='FLOAT',  type=click.FloatRange(min=0), required=False, default=0)
 @click.option('--gpc_reg_prob', help='Strength of swapping regularization. None means no generator pose conditioning, i.e. condition with zeros.', metavar='FLOAT',  type=click.FloatRange(min=0), required=False, default=0.5)
 @click.option('--gpc_reg_fade_kimg', help='Length of swapping prob fade', metavar='INT',  type=click.IntRange(min=0), required=False, default=1000)
-@click.option('--disc_c_noise', help='Strength of discriminator pose conditioning regularization, in standard deviations.', metavar='FLOAT',  type=click.FloatRange(min=0), required=False, default=0)
 @click.option('--sr_noise_mode', help='Type of noise for superresolution', metavar='STR',  type=click.Choice(['random', 'none']), required=False, default='none')
 @click.option('--resume_blur', help='Enable to blur even on resume', metavar='BOOL',  type=bool, required=False, default=False)
 @click.option('--sr_num_fp16_res',    help='Number of fp16 layers in superresolution', metavar='INT', type=click.IntRange(min=0), default=4, required=False, show_default=True)
@@ -268,7 +272,7 @@ def main(**kwargs):
     c.D_kwargs.class_name = 'training.dual_discriminator.DualDiscriminator'
     c.G_kwargs.fused_modconv_default = 'inference_only' # Speed up training by using regular convolutions instead of grouped convolutions.
     c.loss_kwargs.filter_mode = 'antialiased' # Filter mode for raw images ['antialiased', 'none', float [0-1]]
-    c.D_kwargs.disc_c_noise = opts.disc_c_noise # Regularization for discriminator pose conditioning
+    c.D_kwargs.disc_c_noise = 0 # Regularization for discriminator pose conditioning
 
     if c.training_set_kwargs.resolution == 512:
         sr_module = 'training.superresolution.SuperresolutionHybrid8XDC'
@@ -276,8 +280,8 @@ def main(**kwargs):
         sr_module = 'training.superresolution.SuperresolutionHybrid4X'
     elif c.training_set_kwargs.resolution == 128:
         sr_module = 'training.superresolution.SuperresolutionHybrid2X'
-    else:
-        assert False, f"Unsupported resolution {c.training_set_kwargs.resolution}; make a new superresolution module"
+    elif c.training_set_kwargs.resolution == 1024:
+        sr_module = 'training.superresolution.SuperresolutionHybrid16X'
     
     if opts.sr_module != None:
         sr_module = opts.sr_module
@@ -288,7 +292,7 @@ def main(**kwargs):
         'clamp_mode': 'softplus',
         'superresolution_module': sr_module,
         'c_gen_conditioning_zero': not opts.gen_pose_cond, # if true, fill generator pose conditioning label with dummy zero vector
-        'gpc_reg_prob': opts.gpc_reg_prob if opts.gen_pose_cond else None,
+        'c_disc_bp_conditioning_zero': not opts.disc_bodypose_cond, # if true, fill discriminator body pose conditioning label with dummy zero vector
         'c_scale': opts.c_scale, # mutliplier for generator pose conditioning label
         'superresolution_noise_mode': opts.sr_noise_mode, # [random or none], whether to inject pixel noise into super-resolution layers
         'density_reg': opts.density_reg, # strength of density regularization
@@ -296,47 +300,74 @@ def main(**kwargs):
         'reg_type': opts.reg_type, # for experimenting with variations on density regularization
         'decoder_lr_mul': opts.decoder_lr_mul, # learning rate multiplier for decoder
         'sr_antialias': True,
+        'cfg_name': opts.cfg, # name of the cfg
     }
 
-    if opts.cfg == 'ffhq':
-        rendering_options.update({
-            'depth_resolution': 48, # number of uniform samples to take per ray.
-            'depth_resolution_importance': 48, # number of importance samples to take per ray.
-            'ray_start': 2.25, # near point along each ray to start taking samples.
-            'ray_end': 3.3, # far point along each ray to stop taking samples. 
-            'box_warp': 1, # the side-length of the bounding box spanned by the tri-planes; box_warp=1 means [-0.5, -0.5, -0.5] -> [0.5, 0.5, 0.5].
-            'avg_camera_radius': 2.7, # used only in the visualizer to specify camera orbit radius.
-            'avg_camera_pivot': [0, 0, 0.2], # used only in the visualizer to control center of camera rotation.
-        })
-    elif opts.cfg == 'afhq':
-        rendering_options.update({
-            'depth_resolution': 48,
-            'depth_resolution_importance': 48,
-            'ray_start': 2.25,
-            'ray_end': 3.3,
-            'box_warp': 1,
-            'avg_camera_radius': 2.7,
-            'avg_camera_pivot': [0, 0, -0.06],
-        })
-    elif opts.cfg == 'shapenet':
+    if opts.cfg == 'mads' or 'aist' in opts.cfg or opts.cfg == 'surreal' or opts.cfg == 'aist_rescaled' or opts.cfg == 'surreal_new' or opts.cfg == 'shhq' or opts.cfg == 'deepfashion':
         rendering_options.update({
             'depth_resolution': 64,
             'depth_resolution_importance': 64,
             'ray_start': 0.1,
             'ray_end': 2.6,
             'box_warp': 1.6,
-            'white_back': True,
             'avg_camera_radius': 1.7,
             'avg_camera_pivot': [0, 0, 0],
+
+            'projector': opts.projector,
+            'warping_mask': opts.warping_mask,
+            'mesh_clip_offset': opts.mesh_clip_offset,
+            'box_warp_pre_deform': opts.box_warp_pre_deform,
         })
+        if opts.cfg == 'aist':
+            rendering_options.update({
+                'ray_start': 4,
+                'ray_end': 7,
+                'white_back': True,
+                'box_warp': 4,
+            })
+        if opts.cfg == 'aist_rescaled':
+            rendering_options.update({
+                'ray_start': 0.7,
+                'ray_end': 3.2,
+                'white_back': True,
+                'box_warp': 0.8,
+            })
+            c.D_kwargs.disc_c_noise = 1
+            c.loss_kwargs.filter_mode = 'none'
+        if opts.cfg == 'aist_new':
+            rendering_options.update({
+                'ray_start': 0.7,
+                'ray_end': 3.2,
+                'white_back': True,
+                'box_warp': 0.8,
+            })
+            c.D_kwargs.disc_c_noise = 1
+        if opts.cfg == 'shhq':
+            rendering_options.update({
+                'ray_start': 8,
+                'ray_end': 12,
+                'white_back': True,
+                'box_warp': 2,
+            })
+            c.D_kwargs.disc_c_noise = 1
+            c.loss_kwargs.filter_mode = 'none'
+        if opts.cfg == 'deepfashion':
+            rendering_options.update({
+                'ray_start': 8,
+                'ray_end': 14,
+                'white_back': True,
+                'box_warp': 3,
+            })
+            c.D_kwargs.disc_c_noise = 1
+            c.loss_kwargs.filter_mode = 'none'
     else:
         assert False, "Need to specify config"
-
 
 
     if opts.density_reg > 0:
         c.G_reg_interval = opts.density_reg_every
     c.G_kwargs.rendering_kwargs = rendering_options
+    c.D_kwargs.rendering_kwargs = rendering_options
     c.G_kwargs.num_fp16_res = 0
     c.loss_kwargs.blur_init_sigma = 10 # Blur the images seen by the discriminator.
     c.loss_kwargs.blur_fade_kimg = c.batch_size * opts.blur_fade_kimg / 32 # Fade out the blur during the first N kimg.

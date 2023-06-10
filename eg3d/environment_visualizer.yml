@@ -1,0 +1,43 @@
+name: eg3dviz
+channels:
+  - pytorch
+  - nvidia
+  - fvcore
+  - iopath
+  - conda-forge
+  - bottler
+dependencies:
+  - python >= 3.8
+  - pip
+  - numpy>=1.20
+  - click>=8.0
+  - pillow
+  - scipy
+  - pytorch=1.10.0
+  - cudatoolkit=10.2
+  - requests
+  - tqdm
+  - ninja
+  - matplotlib
+  - imageio
+  - fvcore
+  - iopath
+  - nvidiacub
+  - opencv
+  - torchvision
+  - pip:
+    - imgui
+    - glfw
+    - pyopengl
+    - imageio-ffmpeg
+    - pyspng
+    - psutil
+    - mrcfile
+    - tensorboard
+    - smplx
+    - open3d
+    - trimesh
+    - scikit-image
+    - chumpy
+    - pysdf
+    - pyrender

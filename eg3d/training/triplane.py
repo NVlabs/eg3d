@@ -1,19 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
-#
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
-
 import torch
 from torch_utils import persistence
 from training.networks_stylegan2 import Generator as StyleGAN2Backbone
 from training.volumetric_rendering.renderer import ImportanceRenderer
 from training.volumetric_rendering.ray_sampler import RaySampler
 import dnnlib
+from copy import deepcopy
 
 @persistence.persistent_class
 class TriPlaneGenerator(torch.nn.Module):
@@ -32,10 +23,12 @@ class TriPlaneGenerator(torch.nn.Module):
         super().__init__()
         self.z_dim=z_dim
         self.c_dim=c_dim
+        # AWB Change: No body pose conditioning in the generator
+        c_dim = 25
         self.w_dim=w_dim
         self.img_resolution=img_resolution
         self.img_channels=img_channels
-        self.renderer = ImportanceRenderer()
+        self.renderer = ImportanceRenderer(rendering_kwargs)
         self.ray_sampler = RaySampler()
         self.backbone = StyleGAN2Backbone(z_dim, c_dim, w_dim, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
@@ -46,6 +39,9 @@ class TriPlaneGenerator(torch.nn.Module):
         self._last_planes = None
     
     def mapping(self, z, c, truncation_psi=1, truncation_cutoff=None, update_emas=False):
+        # AWB: No body pose conditioning in the generator
+        c = c[:, 0:25]
+
         if self.rendering_kwargs['c_gen_conditioning_zero']:
                 c = torch.zeros_like(c)
         return self.backbone.mapping(z, c * self.rendering_kwargs.get('c_scale', 0), truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, update_emas=update_emas)
@@ -53,6 +49,18 @@ class TriPlaneGenerator(torch.nn.Module):
     def synthesis(self, ws, c, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
         cam2world_matrix = c[:, :16].view(-1, 4, 4)
         intrinsics = c[:, 16:25].view(-1, 3, 3)
+        # print(c.shape)
+        if c.shape[-1] < 111:
+            smpl_params = c[:, 25:107]
+            warp_grid = None
+        elif c.shape[-1] == 111:
+            smpl_params = c[:, 25:110]
+            warp_grid = None
+        elif c.shape[-1] > 111:
+            warp_grid = c[:, 107:].view(c.shape[0], -1, 3).view(c.shape[0], 16, 16, 16, 3)
+        else:
+            print('not possible')
+            warp_grid = None
 
         if neural_rendering_resolution is None:
             neural_rendering_resolution = self.neural_rendering_resolution
@@ -73,9 +81,8 @@ class TriPlaneGenerator(torch.nn.Module):
 
         # Reshape output into three 32-channel planes
         planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
-
-        # Perform volume rendering
-        feature_samples, depth_samples, weights_samples = self.renderer(planes, self.decoder, ray_origins, ray_directions, self.rendering_kwargs) # channels last
+        feature_samples, depth_samples, weights_samples = self.renderer(planes, self.decoder, ray_origins, ray_directions, self.rendering_kwargs, smpl_params=smpl_params,
+                                                                        warp_grid=warp_grid, camera_params=(cam2world_matrix, intrinsics)) # channels last
 
         # Reshape into 'raw' neural-rendered image
         H = W = self.neural_rendering_resolution
@@ -86,20 +93,22 @@ class TriPlaneGenerator(torch.nn.Module):
         rgb_image = feature_image[:, :3]
         sr_image = self.superresolution(rgb_image, feature_image, ws, noise_mode=self.rendering_kwargs['superresolution_noise_mode'], **{k:synthesis_kwargs[k] for k in synthesis_kwargs.keys() if k != 'noise_mode'})
 
-        return {'image': sr_image, 'image_raw': rgb_image, 'image_depth': depth_image}
+        return {'image': sr_image, 'image_raw': rgb_image, 'image_depth': depth_image, 'feature_image': feature_image}
     
     def sample(self, coordinates, directions, z, c, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
-        # Compute RGB features, density for arbitrary 3D coordinates. Mostly used for extracting shapes. 
+        rendering_kwargs_in = deepcopy(self.rendering_kwargs)
+        rendering_kwargs_in['box_warp_pre_deform'] = False
         ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, update_emas=update_emas)
         planes = self.backbone.synthesis(ws, update_emas=update_emas, **synthesis_kwargs)
         planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
-        return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
+        return self.renderer.run_model(planes, self.decoder, coordinates, directions, rendering_kwargs_in)
 
     def sample_mixed(self, coordinates, directions, ws, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
-        # Same as sample, but expects latent vectors 'ws' instead of Gaussian noise 'z'
+        rendering_kwargs_in = deepcopy(self.rendering_kwargs)
+        rendering_kwargs_in['box_warp_pre_deform'] = False
         planes = self.backbone.synthesis(ws, update_emas = update_emas, **synthesis_kwargs)
         planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
-        return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
+        return self.renderer.run_model(planes, self.decoder, coordinates, directions, rendering_kwargs_in)
 
     def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
         # Render a batch of generated images.

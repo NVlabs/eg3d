@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Calculate quality metrics for previous training run or pretrained network pickle."""
 
@@ -25,6 +23,9 @@ from torch_utils import training_stats
 from torch_utils import custom_ops
 from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
+
+from torch_utils import misc
+from training.triplane import TriPlaneGenerator
 
 #----------------------------------------------------------------------------
 
@@ -92,7 +93,7 @@ def parse_comma_separated_list(s):
 @click.option('network_pkl', '--network', help='Network pickle filename or URL', metavar='PATH', required=True)
 @click.option('--metrics', help='Quality metrics', metavar='[NAME|A,B,C|none]', type=parse_comma_separated_list, default='fid50k_full', show_default=True)
 @click.option('--data', help='Dataset to evaluate against  [default: look up]', metavar='[ZIP|DIR]')
-@click.option('--mirror', help='Enable dataset x-flips  [default: look up]', type=bool, metavar='BOOL')
+@click.option('--mirror', help='Enable dataset x-flips  [default: look up]', type=bool, metavar='BOOL', default=False)
 @click.option('--gpus', help='Number of GPUs to use', type=int, default=1, metavar='INT', show_default=True)
 @click.option('--verbose', help='Print optional information', type=bool, default=True, metavar='BOOL', show_default=True)
 
@@ -120,6 +121,12 @@ def calc_metrics(ctx, network_pkl, metrics, data, mirror, gpus, verbose):
       eqt50k_int   Equivariance w.r.t. integer translation (EQ-T).
       eqt50k_frac  Equivariance w.r.t. fractional translation (EQ-T_frac).
       eqr50k       Equivariance w.r.t. rotation (EQ-R).
+      fid50k_full_warp
+      fid10k_full  Frechet inception distance against the full dataset.
+      fid10k_full_warp
+      fid10k_10k
+      fid10k_10k_warp
+      pck          Pck accuracy on predicted keypoints
 
     \b
     Legacy metrics:
@@ -145,6 +152,22 @@ def calc_metrics(ctx, network_pkl, metrics, data, mirror, gpus, verbose):
     with dnnlib.util.open_url(network_pkl, verbose=args.verbose) as f:
         network_dict = legacy.load_network_pkl(f)
         args.G = network_dict['G_ema'] # subclass of torch.nn.Module
+
+    old_architecture = False
+    if old_architecture:
+        print(f'Copying params and buffers into modern architecture')
+        init_kwargs = copy.deepcopy(args.G.init_kwargs)
+        init_kwargs['rendering_kwargs']['box_warp_pre_deform'] = False
+        # init_kwargs['rendering_kwargs']['sr_antialias'] = False
+        init_kwargs['rendering_kwargs']['cfg_name'] = 'surreal_new'
+        init_kwargs['rendering_kwargs']['warping_mask'] = 'cube'
+        init_kwargs['rendering_kwargs']['projector'] = 'none'
+        # init_kwargs['rendering_kwargs']['box_warp'] = 1.0
+        # init_kwargs['rendering_kwargs']['canon_logging'] = True
+        G_new = TriPlaneGenerator(*args.G.init_args, **init_kwargs).eval().requires_grad_(False).to('cuda')
+        misc.copy_params_and_buffers(args.G, G_new, require_all=False)
+        args.G = G_new
+        # args.G.rendering_kwargs['sr_antialias'] = False
 
     # Initialize dataset options.
     if data is not None:

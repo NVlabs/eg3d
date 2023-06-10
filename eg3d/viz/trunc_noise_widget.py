@@ -1,12 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import imgui
 from gui_utils import imgui_utils
@@ -17,8 +15,8 @@ class TruncationNoiseWidget:
     def __init__(self, viz):
         self.viz            = viz
         self.prev_num_ws    = 0
-        self.trunc_psi      = 0.7
-        self.trunc_cutoff   = 7
+        self.trunc_psi      = 1
+        self.trunc_cutoff   = 0
         self.noise_enable   = True
         self.noise_seed     = 0
         self.noise_anim     = False
@@ -63,8 +61,8 @@ class TruncationNoiseWidget:
                 imgui.same_line(imgui.get_content_region_max()[0] - 1 - viz.button_w)
                 if imgui_utils.button('Reset', width=-1, enabled=(not is_def_trunc or not is_def_noise)):
                     self.prev_num_ws = num_ws
-                    self.trunc_psi = 0.7
-                    self.trunc_cutoff = 7
+                    self.trunc_psi = 1
+                    self.trunc_cutoff = num_ws
                     self.noise_enable = True
                     self.noise_seed = 0
                     self.noise_anim = False
